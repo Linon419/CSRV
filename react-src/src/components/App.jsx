@@ -341,8 +341,49 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.ma60.applyOptions({ visible: false });
     }
 
-    // EMA (类似处理)
-    // BB (类似处理)
+    // EMA
+    if (ema21.show) {
+      seriesRef.current.ema21.setData(exponentialMovingAverage(candles, ema21.period));
+      seriesRef.current.ema21.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.ema21.applyOptions({ visible: false });
+    }
+
+    if (ema55.show) {
+      seriesRef.current.ema55.setData(exponentialMovingAverage(candles, ema55.period));
+      seriesRef.current.ema55.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.ema55.applyOptions({ visible: false });
+    }
+
+    if (ema100.show) {
+      seriesRef.current.ema100.setData(exponentialMovingAverage(candles, ema100.period));
+      seriesRef.current.ema100.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.ema100.applyOptions({ visible: false });
+    }
+
+    if (ema200.show) {
+      seriesRef.current.ema200.setData(exponentialMovingAverage(candles, ema200.period));
+      seriesRef.current.ema200.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.ema200.applyOptions({ visible: false });
+    }
+
+    // 布林带
+    if (bb.show) {
+      const bbData = bollingerBands(candles, bb.period, bb.stdDev);
+      seriesRef.current.bbUpper.setData(bbData.upper);
+      seriesRef.current.bbMiddle.setData(bbData.middle);
+      seriesRef.current.bbLower.setData(bbData.lower);
+      seriesRef.current.bbUpper.applyOptions({ visible: true });
+      seriesRef.current.bbMiddle.applyOptions({ visible: true });
+      seriesRef.current.bbLower.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.bbUpper.applyOptions({ visible: false });
+      seriesRef.current.bbMiddle.applyOptions({ visible: false });
+      seriesRef.current.bbLower.applyOptions({ visible: false });
+    }
   };
 
   // ========== 添加价格线 ==========
@@ -654,6 +695,186 @@ export default function App({ dataService, version = 'local' }) {
         </button>
       </div>
 
+      {/* 技术指标设置面板 */}
+      {showIndicators && (
+        <div className="indicators-panel">
+          {/* MA - 简单移动平均线 */}
+          <div className="indicator-group">
+            <h4>MA - 简单移动平均线</h4>
+            <div className="indicator-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ma5.show}
+                  onChange={(e) => setIndicators({ ...indicators, ma5: { ...indicators.ma5, show: e.target.checked } })}
+                />
+                MA5
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ma5.period}
+                  onChange={(e) => setIndicators({ ...indicators, ma5: { ...indicators.ma5, period: parseInt(e.target.value) || 5 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ma10.show}
+                  onChange={(e) => setIndicators({ ...indicators, ma10: { ...indicators.ma10, show: e.target.checked } })}
+                />
+                MA10
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ma10.period}
+                  onChange={(e) => setIndicators({ ...indicators, ma10: { ...indicators.ma10, period: parseInt(e.target.value) || 10 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ma20.show}
+                  onChange={(e) => setIndicators({ ...indicators, ma20: { ...indicators.ma20, show: e.target.checked } })}
+                />
+                MA20
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ma20.period}
+                  onChange={(e) => setIndicators({ ...indicators, ma20: { ...indicators.ma20, period: parseInt(e.target.value) || 20 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ma60.show}
+                  onChange={(e) => setIndicators({ ...indicators, ma60: { ...indicators.ma60, show: e.target.checked } })}
+                />
+                MA60
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ma60.period}
+                  onChange={(e) => setIndicators({ ...indicators, ma60: { ...indicators.ma60, period: parseInt(e.target.value) || 60 } })}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* EMA - 指数移动平均线 */}
+          <div className="indicator-group">
+            <h4>EMA - 指数移动平均线</h4>
+            <div className="indicator-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ema21.show}
+                  onChange={(e) => setIndicators({ ...indicators, ema21: { ...indicators.ema21, show: e.target.checked } })}
+                />
+                EMA21
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ema21.period}
+                  onChange={(e) => setIndicators({ ...indicators, ema21: { ...indicators.ema21, period: parseInt(e.target.value) || 21 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ema55.show}
+                  onChange={(e) => setIndicators({ ...indicators, ema55: { ...indicators.ema55, show: e.target.checked } })}
+                />
+                EMA55
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ema55.period}
+                  onChange={(e) => setIndicators({ ...indicators, ema55: { ...indicators.ema55, period: parseInt(e.target.value) || 55 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ema100.show}
+                  onChange={(e) => setIndicators({ ...indicators, ema100: { ...indicators.ema100, show: e.target.checked } })}
+                />
+                EMA100
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ema100.period}
+                  onChange={(e) => setIndicators({ ...indicators, ema100: { ...indicators.ema100, period: parseInt(e.target.value) || 100 } })}
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.ema200.show}
+                  onChange={(e) => setIndicators({ ...indicators, ema200: { ...indicators.ema200, show: e.target.checked } })}
+                />
+                EMA200
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.ema200.period}
+                  onChange={(e) => setIndicators({ ...indicators, ema200: { ...indicators.ema200, period: parseInt(e.target.value) || 200 } })}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* 布林带 */}
+          <div className="indicator-group">
+            <h4>布林带 (Bollinger Bands)</h4>
+            <div className="indicator-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.bb.show}
+                  onChange={(e) => setIndicators({ ...indicators, bb: { ...indicators.bb, show: e.target.checked } })}
+                />
+                显示布林带
+              </label>
+              <label>
+                周期:
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.bb.period}
+                  onChange={(e) => setIndicators({ ...indicators, bb: { ...indicators.bb, period: parseInt(e.target.value) || 20 } })}
+                />
+              </label>
+              <label>
+                标准差倍数:
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  style={{ width: '50px' }}
+                  value={indicators.bb.stdDev}
+                  onChange={(e) => setIndicators({ ...indicators, bb: { ...indicators.bb, stdDev: parseFloat(e.target.value) || 2 } })}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* 应用按钮 */}
+          <div style={{ marginTop: '10px' }}>
+            <button onClick={loadKlineData}>应用设置</button>
+          </div>
+        </div>
+      )}
+
       {/* 图表和侧边栏 */}
       <div className="main-container">
         <div className="chart-area">
@@ -664,6 +885,13 @@ export default function App({ dataService, version = 'local' }) {
             <span><i style={{ background: 'gold' }}></i>MA10</span>
             <span><i style={{ background: 'blue' }}></i>MA20</span>
             <span><i style={{ background: 'purple' }}></i>MA60</span>
+            <strong style={{ marginLeft: '15px' }}>EMA:</strong>
+            <span><i style={{ background: '#00bcd4' }}></i>EMA21</span>
+            <span><i style={{ background: '#ff9800' }}></i>EMA55</span>
+            <span><i style={{ background: '#e91e63' }}></i>EMA100</span>
+            <span><i style={{ background: '#9c27b0' }}></i>EMA200</span>
+            <strong style={{ marginLeft: '15px' }}>BB:</strong>
+            <span><i style={{ background: '#2196f3' }}></i>布林带</span>
           </div>
         </div>
 
