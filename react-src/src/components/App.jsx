@@ -7,15 +7,19 @@ import {
   intervalToMs
 } from '../services/indicators';
 import {
-  createBacktestState,
-  calculateBacktestStats,
+  createPositionState,
   openPosition,
+  reducePosition,
   closePosition,
-  clearAllTrades,
-  updateBacktestParams,
-  exportTrades,
-  createTradeMarker
-} from '../services/backtest';
+  setStopLoss,
+  setTakeProfit,
+  calculateUnrealizedPnL,
+  calculateTotalStats,
+  createPositionLineConfig,
+  createStopLossLineConfig,
+  createTakeProfitLineConfig,
+  exportTradingHistory
+} from '../services/position';
 import '../styles/global.css';
 
 /**
@@ -47,9 +51,13 @@ export default function App({ dataService, version = 'local' }) {
   const [showIndicators, setShowIndicators] = useState(false);
   const [showBacktest, setShowBacktest] = useState(false);
 
-  // 回测状态
-  const [backtestState, setBacktestState] = useState(() => createBacktestState(10000));
+  // 持仓状态
+  const [positionState, setPositionState] = useState(() => createPositionState());
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [currentPrice, setCurrentPrice] = useState(0);
+  const [stopLossInput, setStopLossInput] = useState('');
+  const [takeProfitInput, setTakeProfitInput] = useState('');
+  const [quantityInput, setQuantityInput] = useState(1);
 
   // 历史记录
   const [history, setHistory] = useState([]);
@@ -64,6 +72,7 @@ export default function App({ dataService, version = 'local' }) {
   const chartRef = useRef(null);
   const seriesRef = useRef({});
   const currentPriceLineRef = useRef(null);
+  const positionLinesRef = useRef({ position: null, stopLoss: null, takeProfit: null });
 
   // ========== 初始化 ==========
   useEffect(() => {
@@ -148,12 +157,14 @@ export default function App({ dataService, version = 'local' }) {
       const priceData = param.seriesPrices.get(candleSeries);
       if (!priceData) return;
 
+      const price = typeof priceData === 'object' ? priceData.close : priceData;
       setSelectedPoint({
         time: param.time * 1000,
-        price: typeof priceData === 'object' ? priceData.close : priceData
+        price: price
       });
+      setCurrentPrice(price);
 
-      console.log(`Selected: ${new Date(param.time * 1000).toLocaleString()}, Price: ${priceData}`);
+      console.log(`Selected: ${new Date(param.time * 1000).toLocaleString()}, Price: ${price}`);
     });
 
     // 保存引用
@@ -594,20 +605,27 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
-  // ========== 回测操作 ==========
+  // ========== 持仓操作 ==========
   const handleOpenLong = () => {
     if (!selectedPoint) {
       alert('请先点击图表选择价格位置');
       return;
     }
     try {
-      const newState = openPosition(backtestState, 'long', selectedPoint.price, selectedPoint.time);
-      setBacktestState(newState);
+      const newState = openPosition(positionState, 'long', selectedPoint.price, selectedPoint.time, quantityInput);
+      setPositionState(newState);
+      updatePositionLines(newState);
 
       // 添加图表标记
-      const marker = createTradeMarker(selectedPoint.time, selectedPoint.price, 'long', 'open');
       const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, marker]);
+      seriesRef.current.candle.setMarkers([...markers, {
+        time: Math.floor(selectedPoint.time / 1000),
+        position: 'belowBar',
+        color: '#26a69a',
+        shape: 'arrowUp',
+        text: 'Long',
+        size: 2
+      }]);
     } catch (error) {
       alert(error.message);
     }
@@ -619,12 +637,74 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const newState = openPosition(backtestState, 'short', selectedPoint.price, selectedPoint.time);
-      setBacktestState(newState);
+      const newState = openPosition(positionState, 'short', selectedPoint.price, selectedPoint.time, quantityInput);
+      setPositionState(newState);
+      updatePositionLines(newState);
 
-      const marker = createTradeMarker(selectedPoint.time, selectedPoint.price, 'short', 'open');
+      // 添加图表标记
       const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, marker]);
+      seriesRef.current.candle.setMarkers([...markers, {
+        time: Math.floor(selectedPoint.time / 1000),
+        position: 'aboveBar',
+        color: '#ef5350',
+        shape: 'arrowDown',
+        text: 'Short',
+        size: 2
+      }]);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleAddPosition = () => {
+    if (!selectedPoint) {
+      alert('请先点击图表选择价格位置');
+      return;
+    }
+    if (!positionState.currentPosition) {
+      alert('当前无持仓，请先开仓');
+      return;
+    }
+    try {
+      const newState = openPosition(positionState, positionState.currentPosition.type, selectedPoint.price, selectedPoint.time, quantityInput);
+      setPositionState(newState);
+      updatePositionLines(newState);
+
+      // 添加图表标记
+      const markers = seriesRef.current.candle.markers() || [];
+      seriesRef.current.candle.setMarkers([...markers, {
+        time: Math.floor(selectedPoint.time / 1000),
+        position: positionState.currentPosition.type === 'long' ? 'belowBar' : 'aboveBar',
+        color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350',
+        shape: 'circle',
+        text: 'Add',
+        size: 1
+      }]);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleReducePosition = () => {
+    if (!selectedPoint) {
+      alert('请先点击图表选择价格位置');
+      return;
+    }
+    try {
+      const newState = reducePosition(positionState, selectedPoint.price, selectedPoint.time, quantityInput);
+      setPositionState(newState);
+      updatePositionLines(newState);
+
+      // 添加图表标记
+      const markers = seriesRef.current.candle.markers() || [];
+      seriesRef.current.candle.setMarkers([...markers, {
+        time: Math.floor(selectedPoint.time / 1000),
+        position: positionState.currentPosition.type === 'long' ? 'aboveBar' : 'belowBar',
+        color: '#ff9800',
+        shape: 'circle',
+        text: 'Reduce',
+        size: 1
+      }]);
     } catch (error) {
       alert(error.message);
     }
@@ -636,19 +716,128 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const posType = backtestState.currentPosition.type;
-      const newState = closePosition(backtestState, selectedPoint.price, selectedPoint.time);
-      setBacktestState(newState);
+      const posType = positionState.currentPosition.type;
+      const newState = closePosition(positionState, selectedPoint.price, selectedPoint.time);
+      setPositionState(newState);
+      clearPositionLines();
 
-      const marker = createTradeMarker(selectedPoint.time, selectedPoint.price, posType, 'close');
+      // 添加图表标记
       const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, marker]);
+      seriesRef.current.candle.setMarkers([...markers, {
+        time: Math.floor(selectedPoint.time / 1000),
+        position: posType === 'long' ? 'aboveBar' : 'belowBar',
+        color: '#9e9e9e',
+        shape: 'square',
+        text: 'Close',
+        size: 2
+      }]);
     } catch (error) {
       alert(error.message);
     }
   };
 
-  const stats = calculateBacktestStats(backtestState);
+  const handleSetStopLoss = () => {
+    if (!stopLossInput) {
+      alert('请输入止损价格');
+      return;
+    }
+    try {
+      const newState = setStopLoss(positionState, parseFloat(stopLossInput));
+      setPositionState(newState);
+      updatePositionLines(newState);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleSetTakeProfit = () => {
+    if (!takeProfitInput) {
+      alert('请输入止盈价格');
+      return;
+    }
+    try {
+      const newState = setTakeProfit(positionState, parseFloat(takeProfitInput));
+      setPositionState(newState);
+      updatePositionLines(newState);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  // 更新持仓价格线
+  const updatePositionLines = (state) => {
+    if (!seriesRef.current.candle) return;
+
+    // 清除旧的价格线
+    clearPositionLines();
+
+    if (state.currentPosition) {
+      // 持仓价格线
+      const posConfig = createPositionLineConfig(state.currentPosition);
+      positionLinesRef.current.position = seriesRef.current.candle.createPriceLine({
+        price: posConfig.price,
+        color: posConfig.color,
+        lineWidth: posConfig.lineWidth,
+        lineStyle: posConfig.lineStyle,
+        axisLabelVisible: posConfig.axisLabelVisible,
+        title: posConfig.title
+      });
+
+      // 止损线
+      if (state.currentPosition.stopLoss) {
+        const slConfig = createStopLossLineConfig(state.currentPosition.stopLoss);
+        positionLinesRef.current.stopLoss = seriesRef.current.candle.createPriceLine({
+          price: slConfig.price,
+          color: slConfig.color,
+          lineWidth: slConfig.lineWidth,
+          lineStyle: slConfig.lineStyle,
+          axisLabelVisible: slConfig.axisLabelVisible,
+          title: slConfig.title
+        });
+      }
+
+      // 止盈线
+      if (state.currentPosition.takeProfit) {
+        const tpConfig = createTakeProfitLineConfig(state.currentPosition.takeProfit);
+        positionLinesRef.current.takeProfit = seriesRef.current.candle.createPriceLine({
+          price: tpConfig.price,
+          color: tpConfig.color,
+          lineWidth: tpConfig.lineWidth,
+          lineStyle: tpConfig.lineStyle,
+          axisLabelVisible: tpConfig.axisLabelVisible,
+          title: tpConfig.title
+        });
+      }
+    }
+  };
+
+  // 清除持仓价格线
+  const clearPositionLines = () => {
+    if (!seriesRef.current.candle) return;
+
+    try {
+      if (positionLinesRef.current.position) {
+        seriesRef.current.candle.removePriceLine(positionLinesRef.current.position);
+        positionLinesRef.current.position = null;
+      }
+      if (positionLinesRef.current.stopLoss) {
+        seriesRef.current.candle.removePriceLine(positionLinesRef.current.stopLoss);
+        positionLinesRef.current.stopLoss = null;
+      }
+      if (positionLinesRef.current.takeProfit) {
+        seriesRef.current.candle.removePriceLine(positionLinesRef.current.takeProfit);
+        positionLinesRef.current.takeProfit = null;
+      }
+    } catch (e) {
+      console.log('Clear position lines failed:', e);
+    }
+  };
+
+  // 计算统计信息
+  const stats = calculateTotalStats(positionState.closedTrades);
+  const unrealizedPnL = positionState.currentPosition && currentPrice
+    ? calculateUnrealizedPnL(positionState.currentPosition, currentPrice)
+    : { pnl: 0, pnlPercent: 0 };
 
   // ========== 渲染 ==========
   return (
@@ -982,54 +1171,216 @@ export default function App({ dataService, version = 'local' }) {
         </div>
       </div>
 
-      {/* 回测工具 */}
+      {/* 持仓工具 */}
       <div style={{ marginTop: '20px' }}>
         <button onClick={() => setShowBacktest(!showBacktest)}>
-          回测工具 {showBacktest ? '▲' : '▼'}
+          Position 持仓工具 {showBacktest ? '▲' : '▼'}
         </button>
       </div>
 
       {showBacktest && (
         <div className="backtest-panel">
           <div className="backtest-controls">
+            {/* 开仓操作 */}
             <div className="backtest-actions">
-              <h4>交易操作</h4>
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <button className="trade-btn long-btn" onClick={handleOpenLong} disabled={stats.hasPosition}>
-                  开多 Long
+              <h4>开仓操作</h4>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ marginRight: '10px' }}>
+                  数量: <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={quantityInput}
+                    onChange={(e) => setQuantityInput(parseFloat(e.target.value) || 1)}
+                    style={{ width: '80px' }}
+                  />
+                </label>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                <button
+                  className="trade-btn long-btn"
+                  onClick={handleOpenLong}
+                  disabled={!!positionState.currentPosition}
+                >
+                  Long Position
                 </button>
-                <button className="trade-btn short-btn" onClick={handleOpenShort} disabled={stats.hasPosition}>
-                  开空 Short
-                </button>
-                <button className="trade-btn close-btn" onClick={handleClose} disabled={!stats.hasPosition}>
-                  平仓 Close
+                <button
+                  className="trade-btn short-btn"
+                  onClick={handleOpenShort}
+                  disabled={!!positionState.currentPosition}
+                >
+                  Short Position
                 </button>
               </div>
             </div>
 
+            {/* 当前持仓 */}
+            {positionState.currentPosition && (
+              <div className="position-info">
+                <h4>当前持仓</h4>
+                <div className="stat-item">
+                  <span>类型:</span>
+                  <strong style={{ color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350' }}>
+                    {positionState.currentPosition.type === 'long' ? 'Long (多仓)' : 'Short (空仓)'}
+                  </strong>
+                </div>
+                <div className="stat-item">
+                  <span>持仓均价:</span>
+                  <strong>{positionState.currentPosition.avgPrice.toFixed(4)}</strong>
+                </div>
+                <div className="stat-item">
+                  <span>持仓数量:</span>
+                  <strong>{positionState.currentPosition.quantity}</strong>
+                </div>
+                <div className="stat-item">
+                  <span>未实现盈亏:</span>
+                  <strong className={unrealizedPnL.pnl >= 0 ? 'profit' : 'loss'}>
+                    {unrealizedPnL.pnl.toFixed(2)} USDT ({unrealizedPnL.pnlPercent.toFixed(2)}%)
+                  </strong>
+                </div>
+
+                {/* 加仓/减仓 */}
+                <div style={{ marginTop: '10px', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      className="trade-btn"
+                      onClick={handleAddPosition}
+                      style={{ background: '#4caf50' }}
+                    >
+                      加仓 Add
+                    </button>
+                    <button
+                      className="trade-btn"
+                      onClick={handleReducePosition}
+                      style={{ background: '#ff9800' }}
+                    >
+                      减仓 Reduce
+                    </button>
+                    <button
+                      className="trade-btn close-btn"
+                      onClick={handleClose}
+                    >
+                      平仓 Close
+                    </button>
+                  </div>
+                </div>
+
+                {/* 止损止盈设置 */}
+                <div style={{ marginTop: '10px' }}>
+                  <h4 style={{ fontSize: '14px' }}>止损/止盈</h4>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '5px' }}>
+                    <input
+                      type="number"
+                      placeholder="止损价格"
+                      step="any"
+                      value={stopLossInput}
+                      onChange={(e) => setStopLossInput(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button onClick={handleSetStopLoss} style={{ padding: '5px 10px' }}>
+                      设置止损
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="number"
+                      placeholder="止盈价格"
+                      step="any"
+                      value={takeProfitInput}
+                      onChange={(e) => setTakeProfitInput(e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <button onClick={handleSetTakeProfit} style={{ padding: '5px 10px' }}>
+                      设置止盈
+                    </button>
+                  </div>
+                  {positionState.currentPosition.stopLoss && (
+                    <div style={{ fontSize: '12px', marginTop: '5px', color: '#f23645' }}>
+                      当前止损: {positionState.currentPosition.stopLoss}
+                    </div>
+                  )}
+                  {positionState.currentPosition.takeProfit && (
+                    <div style={{ fontSize: '12px', marginTop: '2px', color: '#089981' }}>
+                      当前止盈: {positionState.currentPosition.takeProfit}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 交易统计 */}
             <div className="backtest-stats">
-              <h4>回测统计</h4>
+              <h4>交易统计</h4>
               <div className="stat-item">
-                <span>当前资金:</span>
-                <strong>{stats.currentCapital} USDT</strong>
-              </div>
-              <div className="stat-item">
-                <span>总收益:</span>
-                <strong className={stats.profitClass}>{stats.profit} USDT</strong>
-              </div>
-              <div className="stat-item">
-                <span>收益率:</span>
-                <strong className={stats.profitClass}>{stats.returnPct}%</strong>
+                <span>总盈亏:</span>
+                <strong className={stats.totalPnL >= 0 ? 'profit' : 'loss'}>
+                  {stats.totalPnL.toFixed(2)} USDT
+                </strong>
               </div>
               <div className="stat-item">
                 <span>交易次数:</span>
-                <strong>{stats.totalTrades}</strong>
+                <strong>{stats.winTrades + stats.lossTrades}</strong>
               </div>
               <div className="stat-item">
                 <span>胜率:</span>
                 <strong>{stats.winRate}%</strong>
               </div>
+              <div className="stat-item">
+                <span>盈利次数:</span>
+                <strong className="profit">{stats.winTrades}</strong>
+              </div>
+              <div className="stat-item">
+                <span>亏损次数:</span>
+                <strong className="loss">{stats.lossTrades}</strong>
+              </div>
+              <div className="stat-item">
+                <span>平均盈利:</span>
+                <strong className="profit">{stats.avgWin} USDT</strong>
+              </div>
+              <div className="stat-item">
+                <span>平均亏损:</span>
+                <strong className="loss">{stats.avgLoss} USDT</strong>
+              </div>
+              <div className="stat-item">
+                <span>盈亏比:</span>
+                <strong>{stats.profitFactor}</strong>
+              </div>
             </div>
+
+            {/* 交易历史 */}
+            {positionState.closedTrades.length > 0 && (
+              <div className="trade-history">
+                <h4>交易历史</h4>
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {positionState.closedTrades.slice().reverse().map((trade, idx) => (
+                    <div
+                      key={idx}
+                      className="history-item"
+                      style={{
+                        borderLeft: `3px solid ${trade.pnl >= 0 ? '#26a69a' : '#ef5350'}`,
+                        padding: '8px',
+                        marginBottom: '5px',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold' }}>
+                        {trade.type === 'long' ? 'Long' : 'Short'} |
+                        {trade.partial ? ' 部分平仓' : ' 完全平仓'}
+                      </div>
+                      <div>开仓: {trade.entryPrice.toFixed(4)} | 平仓: {trade.closePrice.toFixed(4)}</div>
+                      <div>数量: {trade.quantity} |
+                        <span className={trade.pnl >= 0 ? 'profit' : 'loss'} style={{ fontWeight: 'bold' }}>
+                          盈亏: {trade.pnl.toFixed(2)} USDT
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>
+                        {new Date(trade.closeTime).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

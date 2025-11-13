@@ -350,6 +350,21 @@ button:disabled {
   border-radius: 4px;
 }
 
+/* 持仓信息 */
+.position-info {
+  background: #fff;
+  padding: 12px;
+  border-radius: 4px;
+  border: 2px solid #26a69a;
+  margin-bottom: 15px;
+}
+
+.position-info h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+}
+
 .stat-item {
   display: flex;
   justify-content: space-between;
