@@ -6,10 +6,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: resolve(__dirname, '../dist-local'),
-    emptyOutDir: true,
-    rollupOptions: {
-      input: resolve(__dirname, 'index-local.html')
-    }
+    emptyOutDir: true
   },
   resolve: {
     alias: {
