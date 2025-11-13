@@ -153,7 +153,7 @@ export default function App({ dataService, version = 'local' }) {
     const ema21 = chart.addLineSeries({ color: '#00bcd4', lineWidth: 1, visible: false });
     const ema55 = chart.addLineSeries({ color: '#ff9800', lineWidth: 1, visible: false });
     const ema100 = chart.addLineSeries({ color: '#e91e63', lineWidth: 1, visible: false });
-    const ema200 = chart.addLineSeries({ color: '#9c27b0', lineWidth: 1, visible: false });
+    const ema200 = chart.addLineSeries({ color: '#000000', lineWidth: 1, visible: false });
 
     // 创建布林带系列
     const bbUpper = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false });
@@ -1434,7 +1434,7 @@ export default function App({ dataService, version = 'local' }) {
             <span><i style={{ background: '#00bcd4' }}></i>EMA21</span>
             <span><i style={{ background: '#ff9800' }}></i>EMA55</span>
             <span><i style={{ background: '#e91e63' }}></i>EMA100</span>
-            <span><i style={{ background: '#9c27b0' }}></i>EMA200</span>
+            <span><i style={{ background: '#000000' }}></i>EMA200</span>
             <strong style={{ marginLeft: '15px' }}>BB:</strong>
             <span><i style={{ background: '#2196f3' }}></i>布林带</span>
             <strong style={{ marginLeft: '15px' }}>MACD:</strong>
