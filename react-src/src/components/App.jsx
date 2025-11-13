@@ -37,14 +37,14 @@ export default function App({ dataService, version = 'local' }) {
 
   // 技术指标设置
   const [indicators, setIndicators] = useState({
-    ma5: { show: true, period: 5 },
-    ma10: { show: true, period: 10 },
-    ma20: { show: true, period: 20 },
-    ma60: { show: true, period: 60 },
-    ema21: { show: false, period: 21 },
-    ema55: { show: false, period: 55 },
-    ema100: { show: false, period: 100 },
-    ema200: { show: false, period: 200 },
+    ma5: { show: false, period: 5 },
+    ma10: { show: false, period: 10 },
+    ma20: { show: false, period: 20 },
+    ma60: { show: false, period: 60 },
+    ema21: { show: true, period: 21 },
+    ema55: { show: true, period: 55 },
+    ema100: { show: true, period: 100 },
+    ema200: { show: true, period: 200 },
     bb: { show: false, period: 20, stdDev: 2 },
     macd: { show: false, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }
   });
