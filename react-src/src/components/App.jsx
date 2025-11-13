@@ -208,8 +208,12 @@ export default function App({ dataService, version = 'local' }) {
       // 同步时间轴
       chart.timeScale().subscribeVisibleTimeRangeChange(() => {
         const timeRange = chart.timeScale().getVisibleRange();
-        if (timeRange) {
-          macdChart.timeScale().setVisibleRange(timeRange);
+        if (timeRange && macdChartRef.current && macdContainerRef.current) {
+          try {
+            macdChart.timeScale().setVisibleRange(timeRange);
+          } catch (e) {
+            // MACD 图表可能被隐藏，忽略错误
+          }
         }
       });
 
