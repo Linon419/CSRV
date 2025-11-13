@@ -605,6 +605,40 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
+  // ========== 价格格式化 ==========
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return '0';
+
+    // 将数字转换为字符串，保留完整精度
+    const priceStr = typeof price === 'number' ? price.toString() : price;
+    const priceNum = parseFloat(priceStr);
+
+    // 如果价格很大 (>= 1000)，保留2位小数
+    if (priceNum >= 1000) {
+      return priceNum.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    // 如果价格 >= 1，保留2-8位小数（移除尾部0）
+    if (priceNum >= 1) {
+      return priceNum.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+      });
+    }
+
+    // 如果价格 < 1，保留有效数字（最多8位）
+    if (priceNum > 0) {
+      // 计算需要的小数位数以显示至少2位有效数字
+      const decimalPlaces = Math.max(2, Math.ceil(-Math.log10(priceNum)) + 1);
+      return priceNum.toFixed(Math.min(decimalPlaces, 8));
+    }
+
+    return '0';
+  };
+
   // ========== 持仓操作 ==========
   const handleOpenLong = () => {
     if (!selectedPoint) {
@@ -1226,7 +1260,7 @@ export default function App({ dataService, version = 'local' }) {
                 </div>
                 <div className="stat-item">
                   <span>持仓均价:</span>
-                  <strong>{positionState.currentPosition.avgPrice.toFixed(4)}</strong>
+                  <strong>{formatPrice(positionState.currentPosition.avgPrice)}</strong>
                 </div>
                 <div className="stat-item">
                   <span>持仓数量:</span>
@@ -1296,12 +1330,12 @@ export default function App({ dataService, version = 'local' }) {
                   </div>
                   {positionState.currentPosition.stopLoss && (
                     <div style={{ fontSize: '12px', marginTop: '5px', color: '#f23645' }}>
-                      当前止损: {positionState.currentPosition.stopLoss}
+                      当前止损: {formatPrice(positionState.currentPosition.stopLoss)}
                     </div>
                   )}
                   {positionState.currentPosition.takeProfit && (
                     <div style={{ fontSize: '12px', marginTop: '2px', color: '#089981' }}>
-                      当前止盈: {positionState.currentPosition.takeProfit}
+                      当前止盈: {formatPrice(positionState.currentPosition.takeProfit)}
                     </div>
                   )}
                 </div>
@@ -1367,7 +1401,7 @@ export default function App({ dataService, version = 'local' }) {
                         {trade.type === 'long' ? 'Long' : 'Short'} |
                         {trade.partial ? ' 部分平仓' : ' 完全平仓'}
                       </div>
-                      <div>开仓: {trade.entryPrice.toFixed(4)} | 平仓: {trade.closePrice.toFixed(4)}</div>
+                      <div>开仓: {formatPrice(trade.entryPrice)} | 平仓: {formatPrice(trade.closePrice)}</div>
                       <div>数量: {trade.quantity} |
                         <span className={trade.pnl >= 0 ? 'profit' : 'loss'} style={{ fontWeight: 'bold' }}>
                           盈亏: {trade.pnl.toFixed(2)} USDT
