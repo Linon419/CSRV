@@ -417,6 +417,30 @@ export default function App({ dataService, version = 'local' }) {
       color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
     }));
 
+    // 根据价格范围动态设置精度
+    const prices = candles.map(c => c.close);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const avgPrice = (minPrice + maxPrice) / 2;
+
+    let precision = 2;
+    if (avgPrice >= 1000) {
+      precision = 2;
+    } else if (avgPrice >= 1) {
+      precision = Math.min(8, Math.max(2, -Math.floor(Math.log10(avgPrice)) + 3));
+    } else if (avgPrice > 0) {
+      precision = Math.min(8, Math.ceil(-Math.log10(avgPrice)) + 2);
+    }
+
+    // 应用价格格式
+    seriesRef.current.candle.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision: precision,
+        minMove: Math.pow(10, -precision)
+      }
+    });
+
     // 设置K线和成交量
     seriesRef.current.candle.setData(candles);
     seriesRef.current.volume.setData(volumes);
