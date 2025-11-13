@@ -403,7 +403,7 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   // ========== 渲染图表 ==========
-  const renderChart = (data) => {
+  const renderChart = (data, targetPrice = price, targetTime = time) => {
     const candles = data.map(d => ({
       time: Math.floor(d.time / 1000),
       open: d.open,
@@ -450,14 +450,14 @@ export default function App({ dataService, version = 'local' }) {
     updateIndicators(candles);
 
     // 添加价格线
-    addPriceLine(parseFloat(price));
+    addPriceLine(parseFloat(targetPrice));
 
     // 定位到目标时间
-    const targetTime = Math.floor(new Date(time).getTime() / 1000);
+    const targetTimestamp = Math.floor(new Date(targetTime).getTime() / 1000);
     let nearest = null;
     let minDiff = Infinity;
     for (const c of candles) {
-      const diff = Math.abs(c.time - targetTime);
+      const diff = Math.abs(c.time - targetTimestamp);
       if (diff < minDiff) {
         minDiff = diff;
         nearest = c;
@@ -765,7 +765,7 @@ export default function App({ dataService, version = 'local' }) {
       }
 
       data.sort((a, b) => a.time - b.time);
-      renderChart(data);
+      renderChart(data, item.price, item.time);
     } catch (error) {
       console.error('Load failed:', error);
       alert('加载失败: ' + error.message);
