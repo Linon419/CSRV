@@ -214,6 +214,14 @@ button:disabled {
   height: 150px;
   border: 1px solid #e6e6e6;
   margin-top: 10px;
+  transition: all 0.3s ease;
+}
+
+.macd-chart[style*="visibility: hidden"] {
+  height: 0;
+  margin-top: 0;
+  border: none;
+  overflow: hidden;
 }
 
 /* 图例样式 */

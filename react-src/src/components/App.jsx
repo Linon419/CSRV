@@ -558,7 +558,7 @@ export default function App({ dataService, version = 'local' }) {
     }
 
     // MACD
-    if (macd.show) {
+    if (macd.show && seriesRef.current.macdLine && seriesRef.current.macdSignal && seriesRef.current.macdHistogram) {
       const macdData = calculateMACD(candles, macd.fastPeriod, macd.slowPeriod, macd.signalPeriod);
       seriesRef.current.macdLine.setData(macdData.macd);
       seriesRef.current.macdSignal.setData(macdData.signal);
@@ -566,7 +566,7 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.macdLine.applyOptions({ visible: true });
       seriesRef.current.macdSignal.applyOptions({ visible: true });
       seriesRef.current.macdHistogram.applyOptions({ visible: true });
-    } else {
+    } else if (seriesRef.current.macdLine && seriesRef.current.macdSignal && seriesRef.current.macdHistogram) {
       seriesRef.current.macdLine.applyOptions({ visible: false });
       seriesRef.current.macdSignal.applyOptions({ visible: false });
       seriesRef.current.macdHistogram.applyOptions({ visible: false });
@@ -1450,7 +1450,7 @@ export default function App({ dataService, version = 'local' }) {
           <div
             ref={macdContainerRef}
             className="macd-chart"
-            style={{ display: indicators.macd.show ? 'block' : 'none' }}
+            style={{ visibility: indicators.macd.show ? 'visible' : 'hidden' }}
           />
           <div className="legend">
             <strong>MA:</strong>
