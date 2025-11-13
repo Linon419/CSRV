@@ -192,6 +192,16 @@ export function calculateTotalStats(closedTrades) {
   const totalWin = winTrades.reduce((sum, t) => sum + t.pnl, 0);
   const totalLoss = Math.abs(lossTrades.reduce((sum, t) => sum + t.pnl, 0));
 
+  // 计算盈亏比
+  let profitFactor;
+  if (totalLoss > 0) {
+    profitFactor = (totalWin / totalLoss).toFixed(2);
+  } else if (totalWin > 0) {
+    profitFactor = '∞'; // 只有盈利交易
+  } else {
+    profitFactor = '-'; // 没有交易
+  }
+
   return {
     totalPnL,
     winRate: (winTrades.length / totalTrades * 100).toFixed(2),
@@ -199,7 +209,7 @@ export function calculateTotalStats(closedTrades) {
     lossTrades: lossTrades.length,
     avgWin: winTrades.length > 0 ? (totalWin / winTrades.length).toFixed(2) : 0,
     avgLoss: lossTrades.length > 0 ? (totalLoss / lossTrades.length).toFixed(2) : 0,
-    profitFactor: totalLoss > 0 ? (totalWin / totalLoss).toFixed(2) : 0
+    profitFactor
   };
 }
 
