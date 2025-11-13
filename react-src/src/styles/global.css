@@ -620,3 +620,115 @@ button:disabled {
   background: #fff3e0;
   color: #ff9800;
 }
+
+/* 时间回放控制面板 */
+.playback-panel {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 10px;
+}
+
+.playback-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.playback-btn {
+  padding: 8px 16px;
+  font-size: 18px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+}
+
+.playback-btn:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+}
+
+.playback-btn:active {
+  transform: translateY(0);
+}
+
+.playback-info {
+  flex: 1;
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.speed-control label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+}
+
+.speed-control select {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.playback-slider {
+  margin-top: 8px;
+}
+
+.playback-slider input[type="range"] {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #e0e0e0;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.playback-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.playback-slider input[type="range"]::-webkit-slider-thumb:hover {
+  background: #5568d3;
+  transform: scale(1.2);
+}
+
+.playback-slider input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #667eea;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.playback-slider input[type="range"]::-moz-range-thumb:hover {
+  background: #5568d3;
+  transform: scale(1.2);
+}

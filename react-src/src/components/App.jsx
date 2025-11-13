@@ -53,6 +53,13 @@ export default function App({ dataService, version = 'local' }) {
   const [showIndicators, setShowIndicators] = useState(false);
   const [showBacktest, setShowBacktest] = useState(false);
 
+  // 时间回放状态
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
+  const [fullData, setFullData] = useState([]);
+  const playbackIntervalRef = useRef(null);
+
   // 持仓状态
   const [positionState, setPositionState] = useState(() => createPositionState());
   const [selectedPoint, setSelectedPoint] = useState(null);
@@ -402,8 +409,160 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
+  // ========== 时间回放控制 ==========
+  const startPlayback = () => {
+    if (fullData.length === 0) {
+      alert('请先加载K线数据');
+      return;
+    }
+
+    // 如果位置为0，初始化显示前50根K线
+    if (playbackPosition === 0) {
+      renderChartData(fullData.slice(0, 50), true);
+    }
+
+    setIsPlaying(true);
+  };
+
+  const pausePlayback = () => {
+    setIsPlaying(false);
+  };
+
+  const resetPlayback = () => {
+    setIsPlaying(false);
+    setPlaybackPosition(0);
+    if (fullData.length > 0) {
+      renderChartData(fullData.slice(0, 50)); // 显示前50根K线
+    }
+  };
+
+  const handlePlaybackSpeedChange = (speed) => {
+    setPlaybackSpeed(speed);
+  };
+
+  const handlePlaybackPositionChange = (position) => {
+    setPlaybackPosition(position);
+    if (fullData.length > 0) {
+      const endIndex = Math.min(position + 50, fullData.length);
+      renderChartData(fullData.slice(0, endIndex));
+    }
+  };
+
+  // 回放自动前进
+  useEffect(() => {
+    if (isPlaying && fullData.length > 0) {
+      playbackIntervalRef.current = setInterval(() => {
+        setPlaybackPosition(prev => {
+          const next = prev + 1;
+          if (next >= fullData.length - 50) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return next;
+        });
+      }, 1000 / playbackSpeed); // 根据速度调整间隔
+    } else {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+        playbackIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current);
+      }
+    };
+  }, [isPlaying, playbackSpeed, fullData.length]);
+
+  // 回放位置变化时更新图表
+  useEffect(() => {
+    if (fullData.length > 0 && playbackPosition > 0) {
+      const endIndex = Math.min(playbackPosition + 50, fullData.length);
+      renderChartData(fullData.slice(0, endIndex));
+    }
+  }, [playbackPosition]);
+
+  // ========== 渲染图表数据（内部函数）==========
+  const renderChartData = (data, isPlaybackMode = true) => {
+    const candles = data.map(d => ({
+      time: Math.floor(d.time / 1000),
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close
+    }));
+
+    const volumes = candles.map(c => ({
+      time: c.time,
+      value: data.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+      color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+    }));
+
+    // 根据价格范围动态设置精度
+    const prices = candles.map(c => c.close);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const avgPrice = (minPrice + maxPrice) / 2;
+
+    let precision = 2;
+    if (avgPrice >= 1000) {
+      precision = 2;
+    } else if (avgPrice >= 1) {
+      precision = Math.min(8, Math.max(2, -Math.floor(Math.log10(avgPrice)) + 3));
+    } else if (avgPrice > 0) {
+      precision = Math.min(8, Math.ceil(-Math.log10(avgPrice)) + 2);
+    }
+
+    // 应用价格格式
+    seriesRef.current.candle.applyOptions({
+      priceFormat: {
+        type: 'price',
+        precision: precision,
+        minMove: Math.pow(10, -precision)
+      }
+    });
+
+    // 设置K线和成交量
+    seriesRef.current.candle.setData(candles);
+    seriesRef.current.volume.setData(volumes);
+
+    // 设置技术指标
+    updateIndicators(candles);
+
+    // 在回放模式下，清除所有标记和价格线（避免剧透）
+    if (isPlaybackMode) {
+      // 清除标记
+      seriesRef.current.candle.setMarkers([]);
+
+      // 清除价格线
+      if (currentPriceLineRef.current) {
+        try {
+          seriesRef.current.candle.removePriceLine(currentPriceLineRef.current);
+          currentPriceLineRef.current = null;
+        } catch (e) {
+          // 忽略错误
+        }
+      }
+    }
+
+    // 自动滚动到最新位置
+    if (candles.length > 0) {
+      const lastCandle = candles[candles.length - 1];
+      const startIdx = Math.max(0, candles.length - 100);
+      const from = candles[startIdx].time;
+      const to = lastCandle.time;
+      chartRef.current.timeScale().setVisibleRange({ from, to });
+    }
+  };
+
   // ========== 渲染图表 ==========
   const renderChart = (data, targetPrice = price, targetTime = time) => {
+    // 保存完整数据用于回放
+    setFullData(data);
+    setPlaybackPosition(0);
+    setIsPlaying(false);
+
     const candles = data.map(d => ({
       time: Math.floor(d.time / 1000),
       open: d.open,
@@ -1472,6 +1631,54 @@ export default function App({ dataService, version = 'local' }) {
             <span><i style={{ background: '#2962FF' }}></i>MACD</span>
             <span><i style={{ background: '#FF6D00' }}></i>Signal</span>
           </div>
+
+          {/* 时间回放控制面板 */}
+          {fullData.length > 0 && (
+            <div className="playback-panel">
+              <div className="playback-controls">
+                <button
+                  className="playback-btn"
+                  onClick={isPlaying ? pausePlayback : startPlayback}
+                  title={isPlaying ? '暂停' : '播放'}
+                >
+                  {isPlaying ? '⏸' : '▶'}
+                </button>
+                <button
+                  className="playback-btn"
+                  onClick={resetPlayback}
+                  title="重置到开始"
+                >
+                  ⏮
+                </button>
+                <div className="playback-info">
+                  <span>{playbackPosition} / {fullData.length}</span>
+                </div>
+                <div className="speed-control">
+                  <label>速度:</label>
+                  <select
+                    value={playbackSpeed}
+                    onChange={(e) => handlePlaybackSpeedChange(parseFloat(e.target.value))}
+                  >
+                    <option value={0.5}>0.5x</option>
+                    <option value={1}>1x</option>
+                    <option value={2}>2x</option>
+                    <option value={5}>5x</option>
+                    <option value={10}>10x</option>
+                  </select>
+                </div>
+              </div>
+              <div className="playback-slider">
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(0, fullData.length - 50)}
+                  value={playbackPosition}
+                  onChange={(e) => handlePlaybackPositionChange(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 侧边栏 */}
