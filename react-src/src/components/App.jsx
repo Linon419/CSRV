@@ -29,7 +29,7 @@ export default function App({ dataService, version = 'local' }) {
   // ========== 状态管理 ==========
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [time, setTime] = useState('');
-  const [interval, setInterval] = useState('1m');
+  const [interval, setInterval] = useState('3m');
   const [price, setPrice] = useState('');
   const [zoneType, setZoneType] = useState('bottom');
   const [loading, setLoading] = useState(false);
@@ -66,6 +66,8 @@ export default function App({ dataService, version = 'local' }) {
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editForm, setEditForm] = useState({ time: '', price: '', zoneType: 'bottom' });
 
   // 图表引用
   const chartContainerRef = useRef(null);
@@ -603,6 +605,97 @@ export default function App({ dataService, version = 'local' }) {
     } catch (err) {
       alert('清空失败: ' + err.message);
     }
+  };
+
+  const handleEditHistory = (idx, item) => {
+    setEditingIndex(idx);
+    setEditForm({
+      time: item.time,
+      price: item.price,
+      zoneType: item.zoneType
+    });
+  };
+
+  const handleSaveEdit = (idx) => {
+    const originalItem = filteredHistory[idx];
+    const historyIdx = history.findIndex(h =>
+      h.symbol === originalItem.symbol &&
+      h.time === originalItem.time &&
+      h.interval === originalItem.interval &&
+      h.price === originalItem.price
+    );
+
+    if (historyIdx === -1) return;
+
+    const updatedHistory = [...history];
+    updatedHistory[historyIdx] = {
+      ...updatedHistory[historyIdx],
+      time: editForm.time,
+      price: editForm.price,
+      zoneType: editForm.zoneType
+    };
+
+    localStorage.setItem('searchHistory', JSON.stringify(updatedHistory));
+    setHistory(updatedHistory);
+
+    // 更新filteredHistory
+    let filtered = [...updatedHistory];
+    if (filterSymbol) {
+      const s = filterSymbol.trim().toUpperCase();
+      filtered = filtered.filter(item => item.symbol.toUpperCase().includes(s));
+    }
+    if (filterStart) {
+      const startTs = new Date(filterStart).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() >= startTs);
+    }
+    if (filterEnd) {
+      const endTs = new Date(filterEnd).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
+    }
+    filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+    setFilteredHistory(filtered);
+
+    setEditingIndex(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+    setEditForm({ time: '', price: '', zoneType: 'bottom' });
+  };
+
+  const handleDeleteHistory = (idx) => {
+    if (!confirm('确定要删除这条记录吗？')) return;
+
+    const originalItem = filteredHistory[idx];
+    const historyIdx = history.findIndex(h =>
+      h.symbol === originalItem.symbol &&
+      h.time === originalItem.time &&
+      h.interval === originalItem.interval &&
+      h.price === originalItem.price
+    );
+
+    if (historyIdx === -1) return;
+
+    const updatedHistory = history.filter((_, i) => i !== historyIdx);
+    localStorage.setItem('searchHistory', JSON.stringify(updatedHistory));
+    setHistory(updatedHistory);
+
+    // 更新filteredHistory
+    let filtered = [...updatedHistory];
+    if (filterSymbol) {
+      const s = filterSymbol.trim().toUpperCase();
+      filtered = filtered.filter(item => item.symbol.toUpperCase().includes(s));
+    }
+    if (filterStart) {
+      const startTs = new Date(filterStart).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() >= startTs);
+    }
+    if (filterEnd) {
+      const endTs = new Date(filterEnd).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
+    }
+    filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+    setFilteredHistory(filtered);
   };
 
   // ========== 价格格式化 ==========
@@ -1165,22 +1258,106 @@ export default function App({ dataService, version = 'local' }) {
                 <div
                   key={idx}
                   className={`history-item ${item.zoneType}-zone`}
-                  onClick={() => handleHistoryClick(item)}
+                  style={{ cursor: editingIndex === idx ? 'default' : 'pointer' }}
                 >
-                  <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
-                    {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>
-                    {item.interval} | {new Date(item.time).toLocaleString('zh-CN', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false
-                    })}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>价格: {item.price}</div>
+                  {editingIndex === idx ? (
+                    // 编辑模式
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                        {item.symbol} - {item.interval}
+                      </div>
+                      <div style={{ marginBottom: '5px' }}>
+                        <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>
+                          时间:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editForm.time}
+                          onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                          style={{ width: '100%', fontSize: '11px', padding: '3px' }}
+                        />
+                      </div>
+                      <div style={{ marginBottom: '5px' }}>
+                        <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>
+                          价格:
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={editForm.price}
+                          onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
+                          style={{ width: '100%', fontSize: '11px', padding: '3px' }}
+                        />
+                      </div>
+                      <div style={{ marginBottom: '5px' }}>
+                        <label style={{ fontSize: '11px', display: 'block', marginBottom: '2px' }}>
+                          区域类型:
+                        </label>
+                        <select
+                          value={editForm.zoneType}
+                          onChange={(e) => setEditForm({ ...editForm, zoneType: e.target.value })}
+                          style={{ width: '100%', fontSize: '11px', padding: '3px' }}
+                        >
+                          <option value="bottom">兜底区</option>
+                          <option value="top">探顶区</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                        <button
+                          onClick={() => handleSaveEdit(idx)}
+                          style={{ flex: 1, fontSize: '11px', padding: '4px', background: '#4caf50', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          style={{ flex: 1, fontSize: '11px', padding: '4px', background: '#9e9e9e', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // 显示模式
+                    <div onClick={() => handleHistoryClick(item)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                        <div style={{ fontWeight: 'bold' }}>
+                          {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
+                        </div>
+                        <div style={{ display: 'flex', gap: '2px' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditHistory(idx, item);
+                            }}
+                            style={{ fontSize: '10px', padding: '2px 6px', background: '#2196f3', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHistory(idx);
+                            }}
+                            style={{ fontSize: '10px', padding: '2px 6px', background: '#f44336', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>
+                        {item.interval} | {new Date(item.time).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false
+                        })}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>价格: {item.price}</div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
