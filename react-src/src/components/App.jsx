@@ -1043,46 +1043,79 @@ export default function App({ dataService, version = 'local' }) {
   // ========== 渲染 ==========
   return (
     <div className="app">
-      <h2>潜力区币回测工具 {version === 'local' ? '- 本地版' : ''}</h2>
+      {/* 顶部标题栏 */}
+      <div className="app-header">
+        <h1>潜力区币回测工具</h1>
+        {version === 'local' && <span className="version-badge">本地版</span>}
+      </div>
 
-      {/* 搜索控件 */}
-      <div className="controls">
-        <label>
-          交易对: <input value={symbol} onChange={e => setSymbol(e.target.value)} />
-        </label>
-        <label>
-          时间: <input type="datetime-local" value={time} onChange={e => setTime(e.target.value)} />
-        </label>
-        <label>
-          周期:
-          <select value={interval} onChange={e => handleIntervalChange(e.target.value)}>
-            <option value="3m">3m</option>
-            <option value="1m">1m</option>
-            <option value="5m">5m</option>
-            <option value="15m">15m</option>
-            <option value="30m">30m</option>
-            <option value="1h">1h</option>
-            <option value="4h">4h</option>
-            <option value="1d">1d</option>
-          </select>
-        </label>
-        <label>
-          区域类型:
-          <select value={zoneType} onChange={e => setZoneType(e.target.value)}>
-            <option value="bottom">兜底区</option>
-            <option value="top">探顶区</option>
-          </select>
-        </label>
-        <label>
-          价格: <input type="number" step="any" value={price} onChange={e => setPrice(e.target.value)} />
-        </label>
-        <button onClick={loadKlineData} disabled={loading}>
-          {loading ? '加载中...' : '搜索'}
-        </button>
-        <button onClick={saveToHistory}>保存查询</button>
-        <button onClick={() => setShowIndicators(!showIndicators)}>
-          技术指标 {showIndicators ? '▲' : '▼'}
-        </button>
+      {/* 搜索面板 */}
+      <div className="search-panel">
+        <div className="search-section">
+          <h3>交易设置</h3>
+          <div className="search-row">
+            <div className="input-group">
+              <label>交易对</label>
+              <input
+                value={symbol}
+                onChange={e => setSymbol(e.target.value)}
+                placeholder="如: BTCUSDT"
+              />
+            </div>
+            <div className="input-group">
+              <label>时间</label>
+              <input
+                type="datetime-local"
+                value={time}
+                onChange={e => setTime(e.target.value)}
+              />
+            </div>
+            <div className="input-group">
+              <label>价格</label>
+              <input
+                type="number"
+                step="any"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+                placeholder="目标价格"
+              />
+            </div>
+          </div>
+          <div className="search-row">
+            <div className="input-group">
+              <label>周期</label>
+              <select value={interval} onChange={e => handleIntervalChange(e.target.value)}>
+                <option value="3m">3分钟</option>
+                <option value="1m">1分钟</option>
+                <option value="5m">5分钟</option>
+                <option value="15m">15分钟</option>
+                <option value="30m">30分钟</option>
+                <option value="1h">1小时</option>
+                <option value="4h">4小时</option>
+                <option value="1d">1天</option>
+              </select>
+            </div>
+            <div className="input-group">
+              <label>区域类型</label>
+              <select value={zoneType} onChange={e => setZoneType(e.target.value)}>
+                <option value="bottom">兜底区 📈</option>
+                <option value="top">探顶区 📉</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="action-buttons">
+          <button className="btn-primary" onClick={loadKlineData} disabled={loading}>
+            {loading ? '⏳ 加载中...' : '🔍 搜索'}
+          </button>
+          <button className="btn-secondary" onClick={saveToHistory}>
+            💾 保存查询
+          </button>
+          <button className="btn-secondary" onClick={() => setShowIndicators(!showIndicators)}>
+            📊 技术指标 {showIndicators ? '▲' : '▼'}
+          </button>
+        </div>
       </div>
 
       {/* 技术指标设置面板 */}
@@ -1458,8 +1491,8 @@ export default function App({ dataService, version = 'local' }) {
 
       {/* 持仓工具 */}
       <div style={{ marginTop: '20px' }}>
-        <button onClick={() => setShowBacktest(!showBacktest)}>
-          Position 持仓工具 {showBacktest ? '▲' : '▼'}
+        <button className="btn-secondary" onClick={() => setShowBacktest(!showBacktest)}>
+          💼 Position 持仓工具 {showBacktest ? '▲' : '▼'}
         </button>
       </div>
 
