@@ -79,6 +79,7 @@ export default function App({ dataService, version = 'local' }) {
   const seriesRef = useRef({});
   const currentPriceLineRef = useRef(null);
   const positionLinesRef = useRef({ position: null, stopLoss: null, takeProfit: null });
+  const markersRef = useRef([]);
 
   // ========== 初始化 ==========
   useEffect(() => {
@@ -464,14 +465,16 @@ export default function App({ dataService, version = 'local' }) {
     }
 
     if (nearest) {
-      seriesRef.current.candle.setMarkers([{
+      // 初始化 markers，只包含发布时间标记
+      markersRef.current = [{
         time: nearest.time,
         position: 'belowBar',
         color: 'blue',
         shape: 'arrowUp',
         text: '发布时间',
         size: 3
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
 
       const idx = candles.findIndex(c => c.time === nearest.time);
       const from = candles[Math.max(0, idx - 80)].time;
@@ -918,15 +921,15 @@ export default function App({ dataService, version = 'local' }) {
       updatePositionLines(newState);
 
       // 添加图表标记
-      const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, {
+      markersRef.current = [...markersRef.current, {
         time: Math.floor(selectedPoint.time / 1000),
         position: 'belowBar',
         color: '#26a69a',
         shape: 'arrowUp',
         text: 'Long',
         size: 2
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
     } catch (error) {
       alert(error.message);
     }
@@ -943,15 +946,15 @@ export default function App({ dataService, version = 'local' }) {
       updatePositionLines(newState);
 
       // 添加图表标记
-      const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, {
+      markersRef.current = [...markersRef.current, {
         time: Math.floor(selectedPoint.time / 1000),
         position: 'aboveBar',
         color: '#ef5350',
         shape: 'arrowDown',
         text: 'Short',
         size: 2
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
     } catch (error) {
       alert(error.message);
     }
@@ -972,15 +975,15 @@ export default function App({ dataService, version = 'local' }) {
       updatePositionLines(newState);
 
       // 添加图表标记
-      const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, {
+      markersRef.current = [...markersRef.current, {
         time: Math.floor(selectedPoint.time / 1000),
         position: positionState.currentPosition.type === 'long' ? 'belowBar' : 'aboveBar',
         color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350',
         shape: 'circle',
         text: 'Add',
         size: 1
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
     } catch (error) {
       alert(error.message);
     }
@@ -997,15 +1000,15 @@ export default function App({ dataService, version = 'local' }) {
       updatePositionLines(newState);
 
       // 添加图表标记
-      const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, {
+      markersRef.current = [...markersRef.current, {
         time: Math.floor(selectedPoint.time / 1000),
         position: positionState.currentPosition.type === 'long' ? 'aboveBar' : 'belowBar',
         color: '#ff9800',
         shape: 'circle',
         text: 'Reduce',
         size: 1
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
     } catch (error) {
       alert(error.message);
     }
@@ -1023,15 +1026,15 @@ export default function App({ dataService, version = 'local' }) {
       clearPositionLines();
 
       // 添加图表标记
-      const markers = seriesRef.current.candle.markers() || [];
-      seriesRef.current.candle.setMarkers([...markers, {
+      markersRef.current = [...markersRef.current, {
         time: Math.floor(selectedPoint.time / 1000),
         position: posType === 'long' ? 'aboveBar' : 'belowBar',
         color: '#9e9e9e',
         shape: 'square',
         text: 'Close',
         size: 2
-      }]);
+      }];
+      seriesRef.current.candle.setMarkers(markersRef.current);
     } catch (error) {
       alert(error.message);
     }
