@@ -53,7 +53,10 @@ export default function App({ dataService, version = 'local' }) {
 
   // 历史记录
   const [history, setHistory] = useState([]);
-  const [historyFilter, setHistoryFilter] = useState({});
+  const [filteredHistory, setFilteredHistory] = useState([]);
+  const [filterSymbol, setFilterSymbol] = useState('');
+  const [filterStart, setFilterStart] = useState('');
+  const [filterEnd, setFilterEnd] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // 图表引用
@@ -369,7 +372,9 @@ export default function App({ dataService, version = 'local' }) {
   const loadHistory = () => {
     const saved = localStorage.getItem('searchHistory');
     if (saved) {
-      setHistory(JSON.parse(saved));
+      const historyData = JSON.parse(saved);
+      setHistory(historyData);
+      setFilteredHistory(historyData);
     }
   };
 
@@ -383,7 +388,169 @@ export default function App({ dataService, version = 'local' }) {
     const newHistory = [record, ...history];
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
+    setFilteredHistory(newHistory);
     alert('已保存到观察列表');
+  };
+
+  const applyFilter = () => {
+    let filtered = [...history];
+
+    if (filterSymbol) {
+      const s = filterSymbol.trim().toUpperCase();
+      filtered = filtered.filter(item => item.symbol.toUpperCase().includes(s));
+    }
+
+    if (filterStart) {
+      const startTs = new Date(filterStart).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() >= startTs);
+    }
+
+    if (filterEnd) {
+      const endTs = new Date(filterEnd).getTime();
+      filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
+    }
+
+    filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+    setFilteredHistory(filtered);
+  };
+
+  const resetFilter = () => {
+    setFilterSymbol('');
+    setFilterStart('');
+    setFilterEnd('');
+    setFilteredHistory(history);
+  };
+
+  const clearHistory = () => {
+    if (!confirm('确定要清空所有历史记录吗？')) return;
+    localStorage.removeItem('searchHistory');
+    setHistory([]);
+    setFilteredHistory([]);
+  };
+
+  const exportHistory = () => {
+    if (history.length === 0) {
+      alert('暂无历史记录');
+      return;
+    }
+
+    const data = JSON.stringify(history, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `search_history_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importHistory = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!Array.isArray(data)) throw new Error('文件格式错误');
+
+        const mergedHistory = [...history, ...data];
+        mergedHistory.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        localStorage.setItem('searchHistory', JSON.stringify(mergedHistory));
+        setHistory(mergedHistory);
+        setFilteredHistory(mergedHistory);
+        alert('导入成功');
+      } catch (err) {
+        alert('导入失败: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // 重置文件输入
+  };
+
+  const handleHistoryClick = async (item) => {
+    // 先设置状态
+    setSymbol(item.symbol);
+    setInterval(item.interval);
+    setTime(item.time);
+    setPrice(item.price);
+    setZoneType(item.zoneType);
+
+    // 直接使用item的值加载数据
+    if (!item.symbol || !item.time || !item.price) return;
+
+    setLoading(true);
+    try {
+      const targetDate = new Date(item.time);
+      const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+      const nextDayEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 2).getTime() - 1;
+
+      const ms = intervalToMs[item.interval] || 3600000;
+      const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
+
+      let cachedData = await dataService.getKlinesFromDB(item.symbol, item.interval, dayStart, nextDayEnd);
+      console.log(`Cached: ${cachedData.length} records`);
+
+      let data;
+      if (cachedData.length < totalCandles * 0.9) {
+        console.log('Fetching from API...');
+        const batchSize = 1000;
+        const batches = Math.ceil(totalCandles / batchSize);
+        const promises = [];
+
+        for (let i = 0; i < batches; i++) {
+          const batchStart = dayStart + i * batchSize * ms;
+          const batchEnd = Math.min(dayStart + (i + 1) * batchSize * ms, nextDayEnd);
+          promises.push(dataService.fetchBinanceKlines(item.symbol, item.interval, batchStart, batchEnd, batchSize));
+        }
+
+        const results = await Promise.all(promises);
+        const apiData = results.flat();
+
+        if (!Array.isArray(apiData) || apiData.length === 0) {
+          throw new Error('无数据');
+        }
+
+        await dataService.saveKlinesToDB(item.symbol, item.interval, apiData);
+
+        data = apiData.map(d => ({
+          time: d[0],
+          open: +d[1],
+          high: +d[2],
+          low: +d[3],
+          close: +d[4],
+          volume: +d[5]
+        }));
+      } else {
+        data = cachedData.map(d => ({
+          time: d[0] || d.time,
+          open: +d[1] || +d.open,
+          high: +d[2] || +d.high,
+          low: +d[3] || +d.low,
+          close: +d[4] || +d.close,
+          volume: +d[5] || +d.volume
+        }));
+      }
+
+      data.sort((a, b) => a.time - b.time);
+      renderChart(data);
+    } catch (error) {
+      console.error('Load failed:', error);
+      alert('加载失败: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (!confirm('确定要清空所有K线缓存吗？')) return;
+    try {
+      await dataService.clearKlineCache();
+      alert('K线缓存已清空');
+    } catch (err) {
+      alert('清空失败: ' + err.message);
+    }
   };
 
   // ========== 回测操作 ==========
@@ -500,7 +667,7 @@ export default function App({ dataService, version = 'local' }) {
           </div>
         </div>
 
-        {/* 侧边栏 - 简化版 */}
+        {/* 侧边栏 */}
         <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
           <div className="sidebar-header">
             <h3>潜力观察列表</h3>
@@ -509,13 +676,80 @@ export default function App({ dataService, version = 'local' }) {
             </button>
           </div>
           <div className="sidebar-content">
-            {history.slice(0, 20).map((item, idx) => (
-              <div key={idx} className={`history-item ${item.zoneType}-zone`}>
-                <div style={{ fontWeight: 'bold' }}>{item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>{item.interval} | {item.time}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>价格: {item.price}</div>
+            {/* 筛选器 */}
+            <div className="history-filters">
+              <label>
+                币种筛选
+                <input
+                  placeholder="如 BTCUSDT"
+                  value={filterSymbol}
+                  onChange={(e) => setFilterSymbol(e.target.value)}
+                />
+              </label>
+              <label>
+                起始时间
+                <input
+                  type="datetime-local"
+                  value={filterStart}
+                  onChange={(e) => setFilterStart(e.target.value)}
+                />
+              </label>
+              <label>
+                结束时间
+                <input
+                  type="datetime-local"
+                  value={filterEnd}
+                  onChange={(e) => setFilterEnd(e.target.value)}
+                />
+              </label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button onClick={applyFilter}>筛选</button>
+                <button onClick={resetFilter}>重置</button>
               </div>
-            ))}
+            </div>
+
+            {/* 历史记录列表 */}
+            <div>
+              {filteredHistory.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`history-item ${item.zoneType}-zone`}
+                  onClick={() => handleHistoryClick(item)}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+                    {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>
+                    {item.interval} | {new Date(item.time).toLocaleString('zh-CN', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false
+                    })}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>价格: {item.price}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 控制按钮 */}
+            <div className="history-controls">
+              <button onClick={clearHistory}>清空</button>
+              <button onClick={exportHistory}>导出</button>
+              <input
+                type="file"
+                accept=".json"
+                onChange={importHistory}
+                style={{ display: 'none' }}
+                id="import-file"
+              />
+              <button onClick={() => document.getElementById('import-file').click()}>
+                导入
+              </button>
+              <button onClick={handleClearCache}>清缓存</button>
+            </div>
           </div>
         </div>
       </div>
