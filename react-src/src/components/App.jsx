@@ -1660,7 +1660,7 @@ export default function App({ dataService, version = 'local' }) {
               <h4>开仓操作</h4>
               <div style={{ marginBottom: '10px' }}>
                 <label style={{ marginRight: '10px' }}>
-                  数量: <input
+                  价值 (USDT): <input
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -1703,8 +1703,8 @@ export default function App({ dataService, version = 'local' }) {
                   <strong>{formatPrice(positionState.currentPosition.avgPrice)}</strong>
                 </div>
                 <div className="stat-item">
-                  <span>持仓数量:</span>
-                  <strong>{positionState.currentPosition.quantity}</strong>
+                  <span>持仓价值:</span>
+                  <strong>{(positionState.currentPosition.quantity * positionState.currentPosition.avgPrice).toFixed(2)} USDT</strong>
                 </div>
                 <div className="stat-item">
                   <span>未实现盈亏:</span>
@@ -1842,7 +1842,7 @@ export default function App({ dataService, version = 'local' }) {
                         {trade.partial ? ' 部分平仓' : ' 完全平仓'}
                       </div>
                       <div>开仓: {formatPrice(trade.entryPrice)} | 平仓: {formatPrice(trade.closePrice)}</div>
-                      <div>数量: {trade.quantity} |
+                      <div>价值: {(trade.quantity * trade.entryPrice).toFixed(2)} USDT |
                         <span className={trade.pnl >= 0 ? 'profit' : 'loss'} style={{ fontWeight: 'bold' }}>
                           盈亏: {trade.pnl.toFixed(2)} USDT
                         </span>
