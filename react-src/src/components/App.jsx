@@ -266,6 +266,80 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
+  // ========== 周期切换处理 ==========
+  const handleIntervalChange = async (newInterval) => {
+    setInterval(newInterval);
+
+    // 如果已有完整参数，自动重新加载数据
+    if (symbol && time && price) {
+      setLoading(true);
+
+      try {
+        const targetDate = new Date(time);
+        const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+        const nextDayEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 2).getTime() - 1;
+
+        const ms = intervalToMs[newInterval] || 3600000;
+        const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
+
+        // 从数据库获取缓存
+        let cachedData = await dataService.getKlinesFromDB(symbol, newInterval, dayStart, nextDayEnd);
+        console.log(`Cached: ${cachedData.length} records`);
+
+        let data;
+        if (cachedData.length < totalCandles * 0.9) {
+          console.log('Fetching from API...');
+          const batchSize = 1000;
+          const batches = Math.ceil(totalCandles / batchSize);
+          const promises = [];
+
+          for (let i = 0; i < batches; i++) {
+            const batchStart = dayStart + i * batchSize * ms;
+            const batchEnd = Math.min(dayStart + (i + 1) * batchSize * ms, nextDayEnd);
+            promises.push(dataService.fetchBinanceKlines(symbol, newInterval, batchStart, batchEnd, batchSize));
+          }
+
+          const results = await Promise.all(promises);
+          const apiData = results.flat();
+
+          if (!Array.isArray(apiData) || apiData.length === 0) {
+            throw new Error('无数据');
+          }
+
+          // 保存到数据库
+          await dataService.saveKlinesToDB(symbol, newInterval, apiData);
+
+          data = apiData.map(d => ({
+            time: d[0],
+            open: +d[1],
+            high: +d[2],
+            low: +d[3],
+            close: +d[4],
+            volume: +d[5]
+          }));
+        } else {
+          data = cachedData.map(d => ({
+            time: d[0] || d.time,
+            open: +d[1] || +d.open,
+            high: +d[2] || +d.high,
+            low: +d[3] || +d.low,
+            close: +d[4] || +d.close,
+            volume: +d[5] || +d.volume
+          }));
+        }
+
+        data.sort((a, b) => a.time - b.time);
+        renderChart(data);
+
+      } catch (error) {
+        console.error('Load failed:', error);
+        alert('加载失败: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // ========== 渲染图表 ==========
   const renderChart = (data) => {
     const candles = data.map(d => ({
@@ -981,7 +1055,7 @@ export default function App({ dataService, version = 'local' }) {
         </label>
         <label>
           周期:
-          <select value={interval} onChange={e => setInterval(e.target.value)}>
+          <select value={interval} onChange={e => handleIntervalChange(e.target.value)}>
             <option value="1m">1m</option>
             <option value="3m">3m</option>
             <option value="5m">5m</option>
