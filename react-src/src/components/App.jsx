@@ -4,6 +4,7 @@ import {
   movingAverage,
   exponentialMovingAverage,
   bollingerBands,
+  calculateMACD,
   intervalToMs
 } from '../services/indicators';
 import {
@@ -44,7 +45,8 @@ export default function App({ dataService, version = 'local' }) {
     ema55: { show: false, period: 55 },
     ema100: { show: false, period: 100 },
     ema200: { show: false, period: 200 },
-    bb: { show: false, period: 20, stdDev: 2 }
+    bb: { show: false, period: 20, stdDev: 2 },
+    macd: { show: false, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }
   });
 
   // 面板显示状态
@@ -153,6 +155,24 @@ export default function App({ dataService, version = 'local' }) {
     const bbMiddle = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, visible: false });
     const bbLower = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false });
 
+    // 创建MACD系列（使用单独的价格刻度）
+    const macdLine = chart.addLineSeries({
+      color: '#2962FF',
+      lineWidth: 2,
+      priceScaleId: 'macd',
+      visible: false
+    });
+    const macdSignal = chart.addLineSeries({
+      color: '#FF6D00',
+      lineWidth: 2,
+      priceScaleId: 'macd',
+      visible: false
+    });
+    const macdHistogram = chart.addHistogramSeries({
+      priceScaleId: 'macd',
+      visible: false
+    });
+
     // 图表点击事件
     chart.subscribeClick((param) => {
       if (!param.point || !param.time) return;
@@ -176,7 +196,8 @@ export default function App({ dataService, version = 'local' }) {
       volume: volumeSeries,
       ma5, ma10, ma20, ma60,
       ema21, ema55, ema100, ema200,
-      bbUpper, bbMiddle, bbLower
+      bbUpper, bbMiddle, bbLower,
+      macdLine, macdSignal, macdHistogram
     };
 
     // 响应式调整
@@ -397,7 +418,7 @@ export default function App({ dataService, version = 'local' }) {
 
   // ========== 更新技术指标 ==========
   const updateIndicators = (candles) => {
-    const { ma5, ma10, ma20, ma60, ema21, ema55, ema100, ema200, bb } = indicators;
+    const { ma5, ma10, ma20, ma60, ema21, ema55, ema100, ema200, bb, macd } = indicators;
 
     // MA
     if (ma5.show) {
@@ -470,6 +491,21 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.bbUpper.applyOptions({ visible: false });
       seriesRef.current.bbMiddle.applyOptions({ visible: false });
       seriesRef.current.bbLower.applyOptions({ visible: false });
+    }
+
+    // MACD
+    if (macd.show) {
+      const macdData = calculateMACD(candles, macd.fastPeriod, macd.slowPeriod, macd.signalPeriod);
+      seriesRef.current.macdLine.setData(macdData.macd);
+      seriesRef.current.macdSignal.setData(macdData.signal);
+      seriesRef.current.macdHistogram.setData(macdData.histogram);
+      seriesRef.current.macdLine.applyOptions({ visible: true });
+      seriesRef.current.macdSignal.applyOptions({ visible: true });
+      seriesRef.current.macdHistogram.applyOptions({ visible: true });
+    } else {
+      seriesRef.current.macdLine.applyOptions({ visible: false });
+      seriesRef.current.macdSignal.applyOptions({ visible: false });
+      seriesRef.current.macdHistogram.applyOptions({ visible: false });
     }
   };
 
@@ -1291,6 +1327,51 @@ export default function App({ dataService, version = 'local' }) {
             </div>
           </div>
 
+          {/* MACD */}
+          <div className="indicator-group">
+            <h4>MACD - 指数平滑移动平均线</h4>
+            <div className="indicator-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.macd.show}
+                  onChange={(e) => setIndicators({ ...indicators, macd: { ...indicators.macd, show: e.target.checked } })}
+                />
+                显示MACD
+              </label>
+              <label>
+                快线周期:
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.macd.fastPeriod}
+                  onChange={(e) => setIndicators({ ...indicators, macd: { ...indicators.macd, fastPeriod: parseInt(e.target.value) || 12 } })}
+                />
+              </label>
+              <label>
+                慢线周期:
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.macd.slowPeriod}
+                  onChange={(e) => setIndicators({ ...indicators, macd: { ...indicators.macd, slowPeriod: parseInt(e.target.value) || 26 } })}
+                />
+              </label>
+              <label>
+                信号线周期:
+                <input
+                  type="number"
+                  min="1"
+                  style={{ width: '50px' }}
+                  value={indicators.macd.signalPeriod}
+                  onChange={(e) => setIndicators({ ...indicators, macd: { ...indicators.macd, signalPeriod: parseInt(e.target.value) || 9 } })}
+                />
+              </label>
+            </div>
+          </div>
+
           {/* 应用按钮 */}
           <div style={{ marginTop: '10px' }}>
             <button onClick={loadKlineData}>应用设置</button>
@@ -1315,6 +1396,9 @@ export default function App({ dataService, version = 'local' }) {
             <span><i style={{ background: '#9c27b0' }}></i>EMA200</span>
             <strong style={{ marginLeft: '15px' }}>BB:</strong>
             <span><i style={{ background: '#2196f3' }}></i>布林带</span>
+            <strong style={{ marginLeft: '15px' }}>MACD:</strong>
+            <span><i style={{ background: '#2962FF' }}></i>MACD</span>
+            <span><i style={{ background: '#FF6D00' }}></i>Signal</span>
           </div>
         </div>
 

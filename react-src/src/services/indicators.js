@@ -90,6 +90,65 @@ export function bollingerBands(data, period, stdDevMultiplier = 2) {
 }
 
 /**
+ * MACD (Moving Average Convergence Divergence)
+ * @param {Array} data - K线数据
+ * @param {Number} fastPeriod - 快线周期，默认12
+ * @param {Number} slowPeriod - 慢线周期，默认26
+ * @param {Number} signalPeriod - 信号线周期，默认9
+ * @returns {Object} {macd: [], signal: [], histogram: []}
+ */
+export function calculateMACD(data, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) {
+  if (data.length < slowPeriod) {
+    return { macd: [], signal: [], histogram: [] };
+  }
+
+  // 计算快线EMA和慢线EMA
+  const fastEMA = exponentialMovingAverage(data, fastPeriod);
+  const slowEMA = exponentialMovingAverage(data, slowPeriod);
+
+  // 计算MACD线 (快线 - 慢线)
+  const macdLine = [];
+  const startIndex = slowPeriod - 1;
+
+  for (let i = 0; i < slowEMA.length; i++) {
+    const fastValue = fastEMA.find(e => e.time === slowEMA[i].time);
+    if (fastValue) {
+      macdLine.push({
+        time: slowEMA[i].time,
+        value: fastValue.value - slowEMA[i].value
+      });
+    }
+  }
+
+  // 计算Signal线 (MACD的EMA)
+  if (macdLine.length < signalPeriod) {
+    return { macd: macdLine, signal: [], histogram: [] };
+  }
+
+  const k = 2 / (signalPeriod + 1);
+  let signalEMA = macdLine.slice(0, signalPeriod).reduce((sum, d) => sum + d.value, 0) / signalPeriod;
+
+  const signalLine = [{ time: macdLine[signalPeriod - 1].time, value: signalEMA }];
+  const histogram = [{ time: macdLine[signalPeriod - 1].time, value: macdLine[signalPeriod - 1].value - signalEMA }];
+
+  for (let i = signalPeriod; i < macdLine.length; i++) {
+    signalEMA = macdLine[i].value * k + signalEMA * (1 - k);
+    signalLine.push({ time: macdLine[i].time, value: signalEMA });
+    histogram.push({
+      time: macdLine[i].time,
+      value: macdLine[i].value - signalEMA,
+      color: (macdLine[i].value - signalEMA) >= 0 ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)'
+    });
+  }
+
+  return {
+    macd: macdLine,
+    signal: signalLine,
+    histogram: histogram
+  };
+}
+
+/**
  * 时间周期转换为毫秒
  */
 export const intervalToMs = {
