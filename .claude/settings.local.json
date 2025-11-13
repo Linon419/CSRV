@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(attrib:*)",
+      "Bash(dir /b \"C:\\Users\\lzlyv\\OneDrive\\文档\\交易\\回测工具\")",
+      "Bash(curl:*)",
+      "Bash(dir /b)",
+      "Bash(node convert_timezone.js:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
