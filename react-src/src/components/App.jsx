@@ -1817,7 +1817,15 @@ export default function App({ dataService, version = 'local' }) {
                         </span>
                       </div>
                       <div style={{ fontSize: '11px', color: '#666' }}>
-                        {new Date(trade.closeTime).toLocaleString()}
+                        {new Date(trade.closeTime).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false
+                        })}
                       </div>
                     </div>
                   ))}
