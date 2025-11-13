@@ -73,7 +73,9 @@ export default function App({ dataService, version = 'local' }) {
 
   // 图表引用
   const chartContainerRef = useRef(null);
+  const macdContainerRef = useRef(null);
   const chartRef = useRef(null);
+  const macdChartRef = useRef(null);
   const seriesRef = useRef({});
   const currentPriceLineRef = useRef(null);
   const positionLinesRef = useRef({ position: null, stopLoss: null, takeProfit: null });
@@ -104,6 +106,9 @@ export default function App({ dataService, version = 'local' }) {
     return () => {
       if (chartRef.current) {
         chartRef.current.remove();
+      }
+      if (macdChartRef.current) {
+        macdChartRef.current.remove();
       }
     };
   }, []);
@@ -155,24 +160,6 @@ export default function App({ dataService, version = 'local' }) {
     const bbMiddle = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, visible: false });
     const bbLower = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false });
 
-    // 创建MACD系列（使用单独的价格刻度）
-    const macdLine = chart.addLineSeries({
-      color: '#2962FF',
-      lineWidth: 2,
-      priceScaleId: 'macd',
-      visible: false
-    });
-    const macdSignal = chart.addLineSeries({
-      color: '#FF6D00',
-      lineWidth: 2,
-      priceScaleId: 'macd',
-      visible: false
-    });
-    const macdHistogram = chart.addHistogramSeries({
-      priceScaleId: 'macd',
-      visible: false
-    });
-
     // 图表点击事件
     chart.subscribeClick((param) => {
       if (!param.point || !param.time) return;
@@ -196,15 +183,64 @@ export default function App({ dataService, version = 'local' }) {
       volume: volumeSeries,
       ma5, ma10, ma20, ma60,
       ema21, ema55, ema100, ema200,
-      bbUpper, bbMiddle, bbLower,
-      macdLine, macdSignal, macdHistogram
+      bbUpper, bbMiddle, bbLower
     };
+
+    // 创建MACD图表
+    if (macdContainerRef.current) {
+      const macdChart = createChart(macdContainerRef.current, {
+        layout: {
+          background: { type: 'solid', color: '#ffffff' },
+          textColor: '#000'
+        },
+        width: macdContainerRef.current.clientWidth,
+        height: 150,
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          visible: true
+        },
+        rightPriceScale: {
+          scaleMargins: { top: 0.1, bottom: 0.1 }
+        }
+      });
+
+      // 同步时间轴
+      chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+        const timeRange = chart.timeScale().getVisibleRange();
+        if (timeRange) {
+          macdChart.timeScale().setVisibleRange(timeRange);
+        }
+      });
+
+      const macdLine = macdChart.addLineSeries({
+        color: '#2962FF',
+        lineWidth: 2
+      });
+      const macdSignal = macdChart.addLineSeries({
+        color: '#FF6D00',
+        lineWidth: 2
+      });
+      const macdHistogram = macdChart.addHistogramSeries({
+        color: '#26a69a'
+      });
+
+      macdChartRef.current = macdChart;
+      seriesRef.current.macdLine = macdLine;
+      seriesRef.current.macdSignal = macdSignal;
+      seriesRef.current.macdHistogram = macdHistogram;
+    }
 
     // 响应式调整
     const handleResize = () => {
       chart.applyOptions({
         width: chartContainerRef.current.clientWidth
       });
+      if (macdChartRef.current && macdContainerRef.current) {
+        macdChartRef.current.applyOptions({
+          width: macdContainerRef.current.clientWidth
+        });
+      }
     };
     window.addEventListener('resize', handleResize);
 
@@ -1383,6 +1419,11 @@ export default function App({ dataService, version = 'local' }) {
       <div className="main-container">
         <div className="chart-area">
           <div ref={chartContainerRef} className="chart" />
+          <div
+            ref={macdContainerRef}
+            className="macd-chart"
+            style={{ display: indicators.macd.show ? 'block' : 'none' }}
+          />
           <div className="legend">
             <strong>MA:</strong>
             <span><i style={{ background: 'orange' }}></i>MA5</span>
