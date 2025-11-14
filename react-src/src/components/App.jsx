@@ -420,11 +420,15 @@ export default function App({ dataService, version = 'local' }) {
     // 计算回放起始位置：目标时间前20根K线（至少显示20根）
     const startPos = Math.max(20, targetIndex - 20);
 
+    console.log('开始回放:', { targetIndex, startPos, playbackPosition, fullDataLength: fullData.length });
+
     // 如果还没开始回放，初始化到起始位置
     if (playbackPosition === 0 || playbackPosition < startPos) {
+      console.log('设置回放位置到:', startPos);
       setPlaybackPosition(startPos);
     } else {
       // 如果已经在回放位置，强制刷新一次
+      console.log('强制刷新当前位置:', playbackPosition);
       renderChartData(fullData.slice(0, playbackPosition), true);
     }
 
@@ -455,10 +459,13 @@ export default function App({ dataService, version = 'local' }) {
   // 回放自动前进
   useEffect(() => {
     if (isPlaying && fullData.length > 0) {
+      console.log('启动回放 interval, 速度:', playbackSpeed);
       playbackIntervalRef.current = setInterval(() => {
         setPlaybackPosition(prev => {
           const next = prev + 1;
+          console.log('回放位置:', prev, '->', next);
           if (next >= fullData.length) {
+            console.log('回放完成');
             setIsPlaying(false);
             return fullData.length;
           }
@@ -467,6 +474,7 @@ export default function App({ dataService, version = 'local' }) {
       }, 1000 / playbackSpeed); // 根据速度调整间隔
     } else {
       if (playbackIntervalRef.current) {
+        console.log('停止回放 interval');
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
@@ -536,12 +544,21 @@ export default function App({ dataService, version = 'local' }) {
 
     // 在回放模式下，保留目标价格线和"发布时间"标记
     if (isPlaybackMode) {
-      // 回放模式：以目标时间为中心，固定显示150根K线的范围
-      // 这样K线会从左向右逐步填满固定的视图窗口
-      if (candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
-        // 视图范围：目标时间前后各75根K线（共150根）
-        const viewStart = Math.max(0, targetIndex - 75);
-        const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+      // 回放模式：视图范围跟随当前播放位置
+      // 固定显示150根K线的窗口，以当前位置为右边界
+      if (candles.length > 0 && fullData.length > 0) {
+        const currentPos = candles.length - 1; // 当前最后一根K线的索引
+        const windowSize = 150; // 视图窗口大小
+
+        // 计算视图范围：以当前位置为中心偏右，显示150根K线
+        let viewStart = Math.max(0, currentPos - 100); // 当前位置前100根
+        let viewEnd = Math.min(fullData.length - 1, viewStart + windowSize - 1); // 窗口右边界
+
+        // 如果右边界不够，调整左边界
+        if (viewEnd - viewStart < windowSize - 1) {
+          viewStart = Math.max(0, viewEnd - windowSize + 1);
+        }
+
         const from = Math.floor(fullData[viewStart].time / 1000);
         const to = Math.floor(fullData[viewEnd].time / 1000);
         chartRef.current.timeScale().setVisibleRange({ from, to });
