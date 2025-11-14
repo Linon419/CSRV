@@ -1192,12 +1192,13 @@ export default function App({ dataService, version = 'local' }) {
     if (historyIdx === -1) return;
 
     const updatedHistory = [...history];
-    updatedHistory[historyIdx] = {
+    const updatedItem = {
       ...updatedHistory[historyIdx],
       time: editForm.time,
       price: editForm.price,
       zoneType: editForm.zoneType
     };
+    updatedHistory[historyIdx] = updatedItem;
 
     localStorage.setItem('searchHistory', JSON.stringify(updatedHistory));
     setHistory(updatedHistory);
@@ -1220,6 +1221,20 @@ export default function App({ dataService, version = 'local' }) {
     setFilteredHistory(filtered);
 
     setEditingIndex(null);
+
+    // 如果编辑的是当前正在查看的记录，更新状态并重新渲染图表
+    if (symbol === originalItem.symbol &&
+        time === originalItem.time &&
+        interval === originalItem.interval) {
+      setTime(updatedItem.time);
+      setPrice(updatedItem.price);
+      setZoneType(updatedItem.zoneType);
+
+      // 如果图表已经加载（fullData存在），重新渲染图表
+      if (fullData && fullData.length > 0) {
+        renderChart(fullData, updatedItem.price, updatedItem.time);
+      }
+    }
   };
 
   const handleCancelEdit = () => {
