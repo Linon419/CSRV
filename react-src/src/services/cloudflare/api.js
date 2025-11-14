@@ -2,6 +2,8 @@
  * Cloudflare Workers API服务 (Cloudflare版本使用)
  */
 
+import { fetchKlinesWithFallback } from '../local/multiExchangeAPI.js';
+
 const API_BASE = '/api';
 
 /**
@@ -51,7 +53,7 @@ export async function saveKlinesToDB(symbol, interval, klines) {
 }
 
 /**
- * 直接请求币安合约API（币安支持CORS，无需代理）
+ * 智能获取K线数据（自动切换币安/OKX）
  * @param {string} symbol - 交易对
  * @param {string} interval - 时间间隔
  * @param {number} startTime - 开始时间
@@ -60,20 +62,18 @@ export async function saveKlinesToDB(symbol, interval, klines) {
  * @param {string} marketType - 市场类型（固定为 'futures' 合约）
  */
 export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000, marketType = 'futures') {
-  // 固定使用合约API
-  const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
-
   try {
-    const response = await fetch(url);
+    // 使用智能切换逻辑：币安失败时自动切换到OKX
+    const result = await fetchKlinesWithFallback(symbol, interval, startTime, endTime, limit, marketType);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Binance API错误:', response.status, errorText);
-      throw new Error(`币安合约API请求失败: ${response.status}`);
+    // 在控制台显示数据源
+    if (result.source === 'okx') {
+      console.log(`✓ 已从OKX获取 ${symbol} 数据`);
+    } else {
+      console.log(`✓ 已从币安获取 ${symbol} 数据`);
     }
 
-    const data = await response.json();
-    return data;
+    return result.data;
   } catch (error) {
     // CORS错误通常意味着交易对不存在或参数错误
     if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
