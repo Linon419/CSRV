@@ -732,3 +732,225 @@ button:disabled {
   background: #5568d3;
   transform: scale(1.2);
 }
+
+/* ========== 移动端响应式设计 ========== */
+
+/* 平板设备 (宽度 <= 1024px) */
+@media (max-width: 1024px) {
+  .app {
+    padding: 15px;
+  }
+
+  .sidebar {
+    width: 280px;
+  }
+
+  .backtest-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 移动设备 (宽度 <= 768px) */
+@media (max-width: 768px) {
+  .app {
+    padding: 10px;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .app-header h1 {
+    font-size: 22px;
+  }
+
+  /* 搜索面板 */
+  .search-panel {
+    padding: 15px;
+  }
+
+  .search-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* 主容器垂直布局 */
+  .main-container {
+    flex-direction: column;
+  }
+
+  /* 图表区域 */
+  .chart {
+    height: 400px;
+  }
+
+  .macd-chart {
+    height: 120px;
+  }
+
+  /* 侧边栏全宽显示 */
+  .sidebar {
+    width: 100%;
+    height: auto;
+    max-height: 500px;
+  }
+
+  .sidebar.collapsed {
+    height: 45px;
+    max-height: 45px;
+  }
+
+  /* 按钮 */
+  .action-buttons {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* 回测面板 */
+  .backtest-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .backtest-settings input,
+  .backtest-settings select {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 5px;
+  }
+
+  /* 交易记录 */
+  .trade-record {
+    grid-template-columns: 60px 100px 80px 80px 80px 60px;
+    gap: 5px;
+    font-size: 11px;
+  }
+
+  /* 技术指标 */
+  .indicator-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* 小屏手机 (宽度 <= 480px) */
+@media (max-width: 480px) {
+  .app {
+    padding: 8px;
+  }
+
+  .app-header h1 {
+    font-size: 18px;
+  }
+
+  .version-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  /* 搜索面板 */
+  .search-panel {
+    padding: 12px;
+  }
+
+  .search-section h3 {
+    font-size: 14px;
+  }
+
+  /* 图表 */
+  .chart {
+    height: 300px;
+  }
+
+  .macd-chart {
+    height: 100px;
+  }
+
+  /* 按钮 */
+  .btn-primary,
+  .btn-secondary {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  /* 输入框 */
+  .input-group input,
+  .input-group select {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  /* 交易记录 */
+  .trade-record {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .trade-record > div {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .trade-record.header {
+    display: none;
+  }
+
+  /* 回放控制 */
+  .playback-controls {
+    flex-wrap: wrap;
+  }
+
+  .playback-info {
+    width: 100%;
+    order: -1;
+    margin-bottom: 8px;
+  }
+
+  .speed-control {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 触摸设备优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 增大触摸目标 */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    padding: 14px 24px;
+  }
+
+  input,
+  select {
+    min-height: 44px;
+    font-size: 16px; /* 防止iOS Safari自动缩放 */
+  }
+
+  .history-item {
+    padding: 12px;
+    margin: 6px 0;
+  }
+
+  .toggle-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 滚动优化 */
+  .sidebar-content,
+  .trades-list {
+    -webkit-overflow-scrolling: touch;
+  }
+}
