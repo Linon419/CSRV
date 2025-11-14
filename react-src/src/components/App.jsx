@@ -125,6 +125,49 @@ export default function App({ dataService, version = 'local' }) {
     };
   }, []);
 
+  // 监听排序方式变化，自动重新排序
+  useEffect(() => {
+    if (history.length > 0) {
+      // 重新应用筛选和排序
+      let filtered = [...history];
+
+      if (filterSymbol) {
+        const s = filterSymbol.trim().toUpperCase();
+        filtered = filtered.filter(item => item.symbol.toUpperCase().includes(s));
+      }
+
+      if (filterStart) {
+        const startTs = new Date(filterStart).getTime();
+        filtered = filtered.filter(item => new Date(item.time).getTime() >= startTs);
+      }
+
+      if (filterEnd) {
+        const endTs = new Date(filterEnd).getTime();
+        filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
+      }
+
+      // 应用排序
+      switch (sortType) {
+        case 'time-desc':
+          filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+          break;
+        case 'time-asc':
+          filtered.sort((a, b) => new Date(a.time) - new Date(b.time));
+          break;
+        case 'name-asc':
+          filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
+          break;
+        case 'name-desc':
+          filtered.sort((a, b) => b.symbol.localeCompare(a.symbol));
+          break;
+        default:
+          filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+      }
+
+      setFilteredHistory(filtered);
+    }
+  }, [sortType, history, filterSymbol, filterStart, filterEnd]);
+
   // ========== 图表初始化 ==========
   const initChart = () => {
     if (!chartContainerRef.current) return;
@@ -907,6 +950,28 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
+  // 排序函数
+  const sortHistoryList = (list, sortMethod = sortType) => {
+    const sorted = [...list];
+    switch (sortMethod) {
+      case 'time-desc':
+        sorted.sort((a, b) => new Date(b.time) - new Date(a.time));
+        break;
+      case 'time-asc':
+        sorted.sort((a, b) => new Date(a.time) - new Date(b.time));
+        break;
+      case 'name-asc':
+        sorted.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        break;
+      case 'name-desc':
+        sorted.sort((a, b) => b.symbol.localeCompare(a.symbol));
+        break;
+      default:
+        sorted.sort((a, b) => new Date(b.time) - new Date(a.time));
+    }
+    return sorted;
+  };
+
   const saveToHistory = () => {
     if (!symbol || !time || !price) {
       alert('请输入完整参数');
@@ -932,6 +997,9 @@ export default function App({ dataService, version = 'local' }) {
       alert('已保存到观察列表');
     }
 
+    // 根据当前排序方式自动排序
+    newHistory = sortHistoryList(newHistory);
+
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
     setFilteredHistory(newHistory);
@@ -955,23 +1023,8 @@ export default function App({ dataService, version = 'local' }) {
       filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
     }
 
-    // 根据sortType排序
-    switch (sortType) {
-      case 'time-desc':
-        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
-        break;
-      case 'time-asc':
-        filtered.sort((a, b) => new Date(a.time) - new Date(b.time));
-        break;
-      case 'name-asc':
-        filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
-        break;
-      case 'name-desc':
-        filtered.sort((a, b) => b.symbol.localeCompare(a.symbol));
-        break;
-      default:
-        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
-    }
+    // 使用排序函数
+    filtered = sortHistoryList(filtered);
 
     setFilteredHistory(filtered);
   };
@@ -982,7 +1035,7 @@ export default function App({ dataService, version = 'local' }) {
     setFilterEnd('');
     setSortType('time-desc');
     // 重置后按时间倒序排序
-    const sorted = [...history].sort((a, b) => new Date(b.time) - new Date(a.time));
+    const sorted = sortHistoryList(history, 'time-desc');
     setFilteredHistory(sorted);
   };
 
