@@ -2,18 +2,22 @@
  * 币安API服务 (本地版本直接调用)
  */
 
-const BINANCE_API_BASE = 'https://api.binance.com/api/v3';
+const BINANCE_SPOT_API = 'https://api.binance.com/api/v3';
+const BINANCE_FUTURES_API = 'https://fapi.binance.com/fapi/v1';
 
 /**
  * 从币安API获取K线数据
+ * @param {string} marketType - 市场类型 'spot'(现货) 或 'futures'(合约)
  */
-export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000) {
-  const url = `${BINANCE_API_BASE}/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
+export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000, marketType = 'spot') {
+  const baseUrl = marketType === 'futures' ? BINANCE_FUTURES_API : BINANCE_SPOT_API;
+  const url = `${baseUrl}/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
 
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`币安API请求失败: ${response.status} ${response.statusText}`);
+    const marketName = marketType === 'futures' ? '合约' : '现货';
+    throw new Error(`币安${marketName}API请求失败: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();

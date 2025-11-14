@@ -52,9 +52,20 @@ export async function saveKlinesToDB(symbol, interval, klines) {
 
 /**
  * 直接请求币安API（币安支持CORS，无需代理）
+ * @param {string} symbol - 交易对
+ * @param {string} interval - 时间间隔
+ * @param {number} startTime - 开始时间
+ * @param {number} endTime - 结束时间
+ * @param {number} limit - 限制数量
+ * @param {string} marketType - 市场类型 'spot'(现货) 或 'futures'(合约)
  */
-export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000) {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
+export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000, marketType = 'spot') {
+  // 根据市场类型选择API endpoint
+  const baseUrl = marketType === 'futures'
+    ? 'https://fapi.binance.com/fapi/v1/klines'  // U本位合约
+    : 'https://api.binance.com/api/v3/klines';   // 现货
+
+  const url = `${baseUrl}?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
 
   try {
     const response = await fetch(url);
@@ -70,7 +81,8 @@ export async function fetchBinanceKlines(symbol, interval, startTime, endTime, l
   } catch (error) {
     // CORS错误通常意味着交易对不存在或参数错误
     if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
-      throw new Error(`请求失败，请检查：\n1. 交易对是否正确（如: BTCUSDT, ETHUSDT）\n2. 网络连接是否正常\n\n交易对: ${symbol}`);
+      const marketName = marketType === 'futures' ? '合约' : '现货';
+      throw new Error(`请求失败，请检查：\n1. 交易对是否在${marketName}市场存在（如: BTCUSDT, ETHUSDT）\n2. 网络连接是否正常\n\n交易对: ${symbol}\n市场: ${marketName}`);
     }
     throw error;
   }
