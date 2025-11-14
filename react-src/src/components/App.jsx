@@ -125,6 +125,49 @@ export default function App({ dataService, version = 'local' }) {
     };
   }, []);
 
+  // 监听排序方式变化，自动重新排序
+  useEffect(() => {
+    if (history.length > 0) {
+      // 重新应用筛选和排序
+      let filtered = [...history];
+
+      if (filterSymbol) {
+        const s = filterSymbol.trim().toUpperCase();
+        filtered = filtered.filter(item => item.symbol.toUpperCase().includes(s));
+      }
+
+      if (filterStart) {
+        const startTs = new Date(filterStart).getTime();
+        filtered = filtered.filter(item => new Date(item.time).getTime() >= startTs);
+      }
+
+      if (filterEnd) {
+        const endTs = new Date(filterEnd).getTime();
+        filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
+      }
+
+      // 应用排序
+      switch (sortType) {
+        case 'time-desc':
+          filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+          break;
+        case 'time-asc':
+          filtered.sort((a, b) => new Date(a.time) - new Date(b.time));
+          break;
+        case 'name-asc':
+          filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
+          break;
+        case 'name-desc':
+          filtered.sort((a, b) => b.symbol.localeCompare(a.symbol));
+          break;
+        default:
+          filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+      }
+
+      setFilteredHistory(filtered);
+    }
+  }, [sortType, history, filterSymbol, filterStart, filterEnd]);
+
   // ========== 图表初始化 ==========
   const initChart = () => {
     if (!chartContainerRef.current) return;
@@ -166,21 +209,21 @@ export default function App({ dataService, version = 'local' }) {
     });
 
     // 创建MA系列
-    const ma5 = chart.addLineSeries({ color: 'orange', lineWidth: 1 });
-    const ma10 = chart.addLineSeries({ color: 'gold', lineWidth: 1 });
-    const ma20 = chart.addLineSeries({ color: 'blue', lineWidth: 1 });
-    const ma60 = chart.addLineSeries({ color: 'purple', lineWidth: 1 });
+    const ma5 = chart.addLineSeries({ color: 'orange', lineWidth: 1, lastValueVisible: false });
+    const ma10 = chart.addLineSeries({ color: 'gold', lineWidth: 1, lastValueVisible: false });
+    const ma20 = chart.addLineSeries({ color: 'blue', lineWidth: 1, lastValueVisible: false });
+    const ma60 = chart.addLineSeries({ color: 'purple', lineWidth: 1, lastValueVisible: false });
 
     // 创建EMA系列
-    const ema21 = chart.addLineSeries({ color: '#00bcd4', lineWidth: 1, visible: false });
-    const ema55 = chart.addLineSeries({ color: '#ff9800', lineWidth: 1, visible: false });
-    const ema100 = chart.addLineSeries({ color: '#e91e63', lineWidth: 1, visible: false });
-    const ema200 = chart.addLineSeries({ color: '#000000', lineWidth: 1, visible: false });
+    const ema21 = chart.addLineSeries({ color: '#00bcd4', lineWidth: 1, visible: false, lastValueVisible: false });
+    const ema55 = chart.addLineSeries({ color: '#ff9800', lineWidth: 1, visible: false, lastValueVisible: false });
+    const ema100 = chart.addLineSeries({ color: '#e91e63', lineWidth: 1, visible: false, lastValueVisible: false });
+    const ema200 = chart.addLineSeries({ color: '#000000', lineWidth: 1, visible: false, lastValueVisible: false });
 
     // 创建布林带系列
-    const bbUpper = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false });
-    const bbMiddle = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, visible: false });
-    const bbLower = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false });
+    const bbUpper = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false, lastValueVisible: false });
+    const bbMiddle = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, visible: false, lastValueVisible: false });
+    const bbLower = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false, lastValueVisible: false });
 
     // 图表点击事件
     chart.subscribeClick((param) => {
@@ -251,11 +294,13 @@ export default function App({ dataService, version = 'local' }) {
 
       const macdLine = macdChart.addLineSeries({
         color: '#2962FF',
-        lineWidth: 2
+        lineWidth: 2,
+        lastValueVisible: false
       });
       const macdSignal = macdChart.addLineSeries({
         color: '#FF6D00',
-        lineWidth: 2
+        lineWidth: 2,
+        lastValueVisible: false
       });
       const macdHistogram = macdChart.addHistogramSeries({
         color: '#26a69a'
@@ -907,6 +952,28 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
+  // 排序函数
+  const sortHistoryList = (list, sortMethod = sortType) => {
+    const sorted = [...list];
+    switch (sortMethod) {
+      case 'time-desc':
+        sorted.sort((a, b) => new Date(b.time) - new Date(a.time));
+        break;
+      case 'time-asc':
+        sorted.sort((a, b) => new Date(a.time) - new Date(b.time));
+        break;
+      case 'name-asc':
+        sorted.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        break;
+      case 'name-desc':
+        sorted.sort((a, b) => b.symbol.localeCompare(a.symbol));
+        break;
+      default:
+        sorted.sort((a, b) => new Date(b.time) - new Date(a.time));
+    }
+    return sorted;
+  };
+
   const saveToHistory = () => {
     if (!symbol || !time || !price) {
       alert('请输入完整参数');
@@ -914,11 +981,30 @@ export default function App({ dataService, version = 'local' }) {
     }
 
     const record = { symbol, time, interval, price, zoneType };
-    const newHistory = [record, ...history];
+
+    // 检查是否存在相同币种+相同时间的记录
+    const existingIndex = history.findIndex(
+      item => item.symbol === symbol && item.time === time
+    );
+
+    let newHistory;
+    if (existingIndex !== -1) {
+      // 存在相同记录，更新它
+      newHistory = [...history];
+      newHistory[existingIndex] = record;
+      alert('已更新观察列表中的记录');
+    } else {
+      // 不存在，添加新记录
+      newHistory = [record, ...history];
+      alert('已保存到观察列表');
+    }
+
+    // 根据当前排序方式自动排序
+    newHistory = sortHistoryList(newHistory);
+
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
     setFilteredHistory(newHistory);
-    alert('已保存到观察列表');
   };
 
   const applyFilter = () => {
@@ -939,23 +1025,8 @@ export default function App({ dataService, version = 'local' }) {
       filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
     }
 
-    // 根据sortType排序
-    switch (sortType) {
-      case 'time-desc':
-        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
-        break;
-      case 'time-asc':
-        filtered.sort((a, b) => new Date(a.time) - new Date(b.time));
-        break;
-      case 'name-asc':
-        filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
-        break;
-      case 'name-desc':
-        filtered.sort((a, b) => b.symbol.localeCompare(a.symbol));
-        break;
-      default:
-        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
-    }
+    // 使用排序函数
+    filtered = sortHistoryList(filtered);
 
     setFilteredHistory(filtered);
   };
@@ -966,7 +1037,7 @@ export default function App({ dataService, version = 'local' }) {
     setFilterEnd('');
     setSortType('time-desc');
     // 重置后按时间倒序排序
-    const sorted = [...history].sort((a, b) => new Date(b.time) - new Date(a.time));
+    const sorted = sortHistoryList(history, 'time-desc');
     setFilteredHistory(sorted);
   };
 
@@ -1123,12 +1194,13 @@ export default function App({ dataService, version = 'local' }) {
     if (historyIdx === -1) return;
 
     const updatedHistory = [...history];
-    updatedHistory[historyIdx] = {
+    const updatedItem = {
       ...updatedHistory[historyIdx],
       time: editForm.time,
       price: editForm.price,
       zoneType: editForm.zoneType
     };
+    updatedHistory[historyIdx] = updatedItem;
 
     localStorage.setItem('searchHistory', JSON.stringify(updatedHistory));
     setHistory(updatedHistory);
@@ -1151,6 +1223,20 @@ export default function App({ dataService, version = 'local' }) {
     setFilteredHistory(filtered);
 
     setEditingIndex(null);
+
+    // 如果编辑的是当前正在查看的记录，更新状态并重新渲染图表
+    if (symbol === originalItem.symbol &&
+        time === originalItem.time &&
+        interval === originalItem.interval) {
+      setTime(updatedItem.time);
+      setPrice(updatedItem.price);
+      setZoneType(updatedItem.zoneType);
+
+      // 如果图表已经加载（fullData存在），重新渲染图表
+      if (fullData && fullData.length > 0) {
+        renderChart(fullData, updatedItem.price, updatedItem.time);
+      }
+    }
   };
 
   const handleCancelEdit = () => {
@@ -1896,12 +1982,22 @@ export default function App({ dataService, version = 'local' }) {
 
             {/* 历史记录列表 */}
             <div>
-              {filteredHistory.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`history-item ${item.zoneType}-zone`}
-                  style={{ cursor: editingIndex === idx ? 'default' : 'pointer' }}
-                >
+              {filteredHistory.map((item, idx) => {
+                // 统计当前币种在列表中出现的次数
+                const symbolCount = filteredHistory.filter(h => h.symbol === item.symbol).length;
+                // 如果出现多次，添加背景色
+                const isDuplicate = symbolCount > 1;
+                const backgroundColor = isDuplicate ? 'rgba(255, 193, 7, 0.1)' : 'transparent';
+
+                return (
+                  <div
+                    key={idx}
+                    className={`history-item ${item.zoneType}-zone`}
+                    style={{
+                      cursor: editingIndex === idx ? 'default' : 'pointer',
+                      backgroundColor: backgroundColor
+                    }}
+                  >
                   {editingIndex === idx ? (
                     // 编辑模式
                     <div onClick={(e) => e.stopPropagation()}>
@@ -1963,8 +2059,20 @@ export default function App({ dataService, version = 'local' }) {
                     // 显示模式
                     <div onClick={() => handleHistoryClick(item)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <div style={{ fontWeight: 'bold' }}>
-                          {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
+                        <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>{item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}</span>
+                          {isDuplicate && (
+                            <span style={{
+                              fontSize: '9px',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              backgroundColor: '#ff9800',
+                              color: 'white',
+                              fontWeight: 'normal'
+                            }}>
+                              ×{symbolCount}
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '2px' }}>
                           <button
@@ -2001,7 +2109,8 @@ export default function App({ dataService, version = 'local' }) {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* 控制按钮 */}
