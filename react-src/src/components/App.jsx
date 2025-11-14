@@ -914,11 +914,27 @@ export default function App({ dataService, version = 'local' }) {
     }
 
     const record = { symbol, time, interval, price, zoneType };
-    const newHistory = [record, ...history];
+
+    // 检查是否存在相同币种+相同时间的记录
+    const existingIndex = history.findIndex(
+      item => item.symbol === symbol && item.time === time
+    );
+
+    let newHistory;
+    if (existingIndex !== -1) {
+      // 存在相同记录，更新它
+      newHistory = [...history];
+      newHistory[existingIndex] = record;
+      alert('已更新观察列表中的记录');
+    } else {
+      // 不存在，添加新记录
+      newHistory = [record, ...history];
+      alert('已保存到观察列表');
+    }
+
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
     setFilteredHistory(newHistory);
-    alert('已保存到观察列表');
   };
 
   const applyFilter = () => {
