@@ -1058,6 +1058,7 @@ export default function App({ dataService, version = 'local' }) {
     );
 
     let newHistory;
+    let isNewRecord = false;
     if (existingIndex !== -1) {
       // 存在相同记录，更新它
       newHistory = [...history];
@@ -1066,6 +1067,7 @@ export default function App({ dataService, version = 'local' }) {
     } else {
       // 不存在，添加新记录
       newHistory = [record, ...history];
+      isNewRecord = true;
       alert('已保存到观察列表');
     }
 
@@ -1075,6 +1077,21 @@ export default function App({ dataService, version = 'local' }) {
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
     setFilteredHistory(newHistory);
+
+    // 备份提醒：每10条新记录提醒一次
+    if (isNewRecord && newHistory.length % 10 === 0 && newHistory.length > 0) {
+      const lastBackupReminder = localStorage.getItem('lastBackupReminder');
+      const now = Date.now();
+      // 每24小时最多提醒一次
+      if (!lastBackupReminder || now - parseInt(lastBackupReminder) > 24 * 60 * 60 * 1000) {
+        localStorage.setItem('lastBackupReminder', now.toString());
+        setTimeout(() => {
+          if (confirm(`📊 您已保存 ${newHistory.length} 条观察记录！\n\n💡 提示：观察列表仅保存在当前浏览器中\n换浏览器或清除缓存会导致数据丢失\n\n是否现在备份数据？`)) {
+            exportHistory();
+          }
+        }, 500);
+      }
+    }
   };
 
   const applyFilter = () => {
@@ -2187,7 +2204,13 @@ export default function App({ dataService, version = 'local' }) {
             {/* 控制按钮 */}
             <div className="history-controls">
               <button onClick={clearHistory}>清空</button>
-              <button onClick={exportHistory}>导出</button>
+              <button
+                onClick={exportHistory}
+                style={{ background: '#4caf50', color: 'white', fontWeight: 'bold' }}
+                title="备份观察列表到本地文件"
+              >
+                💾 导出备份
+              </button>
               <input
                 type="file"
                 accept=".json"
@@ -2195,11 +2218,20 @@ export default function App({ dataService, version = 'local' }) {
                 style={{ display: 'none' }}
                 id="import-file"
               />
-              <button onClick={() => document.getElementById('import-file').click()}>
-                导入
+              <button
+                onClick={() => document.getElementById('import-file').click()}
+                style={{ background: '#2196f3', color: 'white', fontWeight: 'bold' }}
+                title="从备份文件恢复观察列表"
+              >
+                📂 导入备份
               </button>
               <button onClick={handleClearCache}>清缓存</button>
             </div>
+            {history.length > 0 && (
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '8px', padding: '4px 8px', background: '#fff3cd', borderRadius: '3px', border: '1px solid #ffc107' }}>
+                💡 提示：数据仅保存在当前浏览器，请定期导出备份
+              </div>
+            )}
           </div>
         </div>
       </div>
