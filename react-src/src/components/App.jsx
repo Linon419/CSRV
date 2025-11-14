@@ -541,12 +541,12 @@ export default function App({ dataService, version = 'local' }) {
         }
       }
 
-      // 回放模式：固定视图范围，让K线从左向右增长
-      // 视图始终显示从第一根K线开始的100根（或全部如果少于100根）
-      if (candles.length > 0) {
-        const visibleCount = Math.min(100, candles.length);
-        const from = candles[0].time;
-        const to = candles[visibleCount - 1].time;
+      // 回放模式：固定视图宽度，基于完整数据的前150根K线的时间范围
+      // 这样K线会从左向右逐步填满固定的视图窗口
+      if (candles.length > 0 && fullData.length > 0) {
+        const from = Math.floor(fullData[0].time / 1000);
+        const viewRangeCount = Math.min(150, fullData.length);
+        const to = Math.floor(fullData[viewRangeCount - 1].time / 1000);
         chartRef.current.timeScale().setVisibleRange({ from, to });
       }
     } else {
