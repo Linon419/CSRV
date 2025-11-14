@@ -58,7 +58,9 @@ export default function App({ dataService, version = 'local' }) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [fullData, setFullData] = useState([]);
+  const [targetIndex, setTargetIndex] = useState(0); // 目标时间在数据中的索引
   const playbackIntervalRef = useRef(null);
+  const lastPlaybackPosRef = useRef(0); // 记录上一次回放位置，用于检测是否连续播放
 
   // 持仓状态
   const [positionState, setPositionState] = useState(() => createPositionState());
@@ -416,9 +418,12 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
-    // 如果位置小于50，初始化到50（显示前50根K线）
-    if (playbackPosition < 50) {
-      setPlaybackPosition(50);
+    // 计算回放起始位置：目标时间前20根K线（至少显示20根）
+    const startPos = Math.max(20, targetIndex - 20);
+
+    // 如果还没开始回放，初始化到起始位置
+    if (playbackPosition === 0 || playbackPosition < startPos) {
+      setPlaybackPosition(startPos);
     }
 
     setIsPlaying(true);
@@ -430,7 +435,9 @@ export default function App({ dataService, version = 'local' }) {
 
   const resetPlayback = () => {
     setIsPlaying(false);
-    setPlaybackPosition(50);
+    // 重置到目标时间前20根K线
+    const startPos = Math.max(20, targetIndex - 20);
+    setPlaybackPosition(startPos);
   };
 
   const handlePlaybackSpeedChange = (speed) => {
@@ -438,7 +445,8 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   const handlePlaybackPositionChange = (position) => {
-    const newPosition = Math.max(50, Math.min(position, fullData.length));
+    const startPos = Math.max(20, targetIndex - 20);
+    const newPosition = Math.max(startPos, Math.min(position, fullData.length));
     setPlaybackPosition(newPosition);
   };
 
@@ -471,10 +479,89 @@ export default function App({ dataService, version = 'local' }) {
 
   // 回放位置变化时更新图表
   useEffect(() => {
-    if (fullData.length > 0 && playbackPosition >= 50) {
-      renderChartData(fullData.slice(0, playbackPosition), true);
+    const startPos = Math.max(20, targetIndex - 20);
+    if (fullData.length > 0 && playbackPosition >= startPos && chartRef.current && seriesRef.current.candle) {
+
+      const isFirstTime = playbackPosition === startPos;
+      const isContinuous = playbackPosition === lastPlaybackPosRef.current + 1;
+      const isJump = !isFirstTime && !isContinuous;
+
+      // 第一次回放 或 跳跃（用户拖动进度条）：重新初始化所有数据
+      if (isFirstTime || isJump) {
+        const currentData = fullData.slice(0, playbackPosition);
+
+        const candles = currentData.map(d => ({
+          time: Math.floor(d.time / 1000),
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close
+        }));
+
+        const volumes = candles.map(c => ({
+          time: c.time,
+          value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+          color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+        }));
+
+        seriesRef.current.candle.setData(candles);
+        seriesRef.current.volume.setData(volumes);
+        updateIndicators(candles);
+
+        // 初始视口：显示最后20根K线
+        const viewportSize = 20;
+        if (candles.length >= viewportSize) {
+          const from = candles[candles.length - viewportSize].time;
+          const to = candles[candles.length - 1].time;
+          chartRef.current.timeScale().setVisibleRange({ from, to });
+        }
+      }
+      // 连续回放：重新设置所有数据，但使用滚动视口
+      else if (isContinuous) {
+        const currentData = fullData.slice(0, playbackPosition);
+
+        const candles = currentData.map(d => ({
+          time: Math.floor(d.time / 1000),
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close
+        }));
+
+        const volumes = candles.map(c => ({
+          time: c.time,
+          value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+          color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+        }));
+
+        // 计算滚动视口：显示最后20根K线
+        const viewportSize = 20;
+        const viewStart = Math.max(0, candles.length - viewportSize);
+        const from = candles[viewStart].time;
+        const to = candles[candles.length - 1].time;
+
+        // 先设置视口
+        chartRef.current.timeScale().setVisibleRange({ from, to });
+
+        // 再设置数据
+        seriesRef.current.candle.setData(candles);
+        seriesRef.current.volume.setData(volumes);
+
+        // 暂时不更新技术指标，减少重绘
+        // updateIndicators(candles);
+
+        // 确保视口不变
+        requestAnimationFrame(() => {
+          if (chartRef.current) {
+            chartRef.current.timeScale().setVisibleRange({ from, to });
+          }
+        });
+      }
+
+      // 记录当前位置
+      lastPlaybackPosRef.current = playbackPosition;
     }
-  }, [playbackPosition, fullData]);
+  }, [playbackPosition, fullData, targetIndex]);
 
   // ========== 渲染图表数据（内部函数）==========
   const renderChartData = (data, isPlaybackMode = true) => {
@@ -516,6 +603,26 @@ export default function App({ dataService, version = 'local' }) {
       }
     });
 
+    // 在回放模式下，先设置固定视图范围，再设置数据
+    if (isPlaybackMode && candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
+      // 固定视图范围：以目标时间为中心的150根K线的时间范围
+      // 这个范围在整个回放过程中保持不变
+      const viewStart = Math.max(0, targetIndex - 75);
+      const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+
+      // 使用完整数据的时间范围（固定不变）
+      const from = Math.floor(fullData[viewStart].time / 1000);
+      const to = Math.floor(fullData[viewEnd].time / 1000);
+
+      // 先设置视图范围
+      chartRef.current.timeScale().setVisibleRange({ from, to });
+
+      // 禁用自动缩放
+      chartRef.current.timeScale().applyOptions({
+        lockVisibleTimeRangeOnResize: true
+      });
+    }
+
     // 设置K线和成交量
     seriesRef.current.candle.setData(candles);
     seriesRef.current.volume.setData(volumes);
@@ -523,29 +630,26 @@ export default function App({ dataService, version = 'local' }) {
     // 设置技术指标
     updateIndicators(candles);
 
-    // 在回放模式下，清除所有标记和价格线（避免剧透）
-    if (isPlaybackMode) {
-      // 清除标记
-      seriesRef.current.candle.setMarkers([]);
+    // 回放模式：设置数据后再次确保视图范围不变
+    if (isPlaybackMode && candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
+      const viewStart = Math.max(0, targetIndex - 75);
+      const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+      const from = Math.floor(fullData[viewStart].time / 1000);
+      const to = Math.floor(fullData[viewEnd].time / 1000);
 
-      // 清除价格线
-      if (currentPriceLineRef.current) {
-        try {
-          seriesRef.current.candle.removePriceLine(currentPriceLineRef.current);
-          currentPriceLineRef.current = null;
-        } catch (e) {
-          // 忽略错误
-        }
+      // 强制设置视图范围（在 setData 之后）
+      setTimeout(() => {
+        chartRef.current.timeScale().setVisibleRange({ from, to });
+      }, 0);
+    } else {
+      // 正常模式：自动滚动到最新位置
+      if (candles.length > 0) {
+        const lastCandle = candles[candles.length - 1];
+        const startIdx = Math.max(0, candles.length - 100);
+        const from = candles[startIdx].time;
+        const to = lastCandle.time;
+        chartRef.current.timeScale().setVisibleRange({ from, to });
       }
-    }
-
-    // 自动滚动到最新位置
-    if (candles.length > 0) {
-      const lastCandle = candles[candles.length - 1];
-      const startIdx = Math.max(0, candles.length - 100);
-      const from = candles[startIdx].time;
-      const to = lastCandle.time;
-      chartRef.current.timeScale().setVisibleRange({ from, to });
     }
   };
 
@@ -629,6 +733,10 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.candle.setMarkers(markersRef.current);
 
       const idx = candles.findIndex(c => c.time === nearest.time);
+
+      // 保存目标索引用于回放
+      setTargetIndex(idx);
+
       const from = candles[Math.max(0, idx - 80)].time;
       const to = candles[Math.min(candles.length - 1, idx + 80)].time;
       chartRef.current.timeScale().setVisibleRange({ from, to });
@@ -1663,7 +1771,7 @@ export default function App({ dataService, version = 'local' }) {
               <div className="playback-slider">
                 <input
                   type="range"
-                  min={50}
+                  min={Math.max(20, targetIndex - 20)}
                   max={fullData.length}
                   value={playbackPosition}
                   onChange={(e) => handlePlaybackPositionChange(parseInt(e.target.value))}

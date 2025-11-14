@@ -5,7 +5,7 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [react()],
   build: {
-    outDir: resolve(__dirname, '../public-react'),
+    outDir: resolve(__dirname, '../public'),
     emptyOutDir: true,
     rollupOptions: {
       input: resolve(__dirname, 'index-cloudflare.html')
