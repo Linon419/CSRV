@@ -7,9 +7,6 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, '../public'),
     emptyOutDir: true,
-    rollupOptions: {
-      input: resolve(__dirname, 'index-cloudflare.html')
-    }
   },
   resolve: {
     alias: {
