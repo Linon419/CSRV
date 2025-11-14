@@ -1,0 +1,23 @@
+{
+  "name": "backtest-tool-react",
+  "version": "1.0.0",
+  "description": "潜力区币回测工具 - React版本",
+  "type": "module",
+  "scripts": {
+    "dev:local": "vite --config vite.config.local.js",
+    "dev:cloudflare": "vite --config vite.config.cloudflare.js",
+    "build:local": "vite build --config vite.config.local.js",
+    "build:cloudflare": "vite build --config vite.config.cloudflare.js",
+    "preview:local": "vite preview --config vite.config.local.js",
+    "preview:cloudflare": "vite preview --config vite.config.cloudflare.js"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "lightweight-charts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.12"
+  }
+}
