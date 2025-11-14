@@ -60,6 +60,7 @@ export default function App({ dataService, version = 'local' }) {
   const [fullData, setFullData] = useState([]);
   const [targetIndex, setTargetIndex] = useState(0); // 目标时间在数据中的索引
   const playbackIntervalRef = useRef(null);
+  const lastPlaybackPosRef = useRef(0); // 记录上一次回放位置，用于检测是否连续播放
 
   // 持仓状态
   const [positionState, setPositionState] = useState(() => createPositionState());
@@ -480,41 +481,96 @@ export default function App({ dataService, version = 'local' }) {
   useEffect(() => {
     const startPos = Math.max(20, targetIndex - 20);
     if (fullData.length > 0 && playbackPosition >= startPos && chartRef.current && seriesRef.current.candle) {
-      // 获取当前回放位置的数据切片
-      const currentData = fullData.slice(0, playbackPosition);
 
-      // 转换为K线格式
-      const candles = currentData.map(d => ({
-        time: Math.floor(d.time / 1000),
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close
-      }));
+      const isFirstTime = playbackPosition === startPos;
+      const isContinuous = playbackPosition === lastPlaybackPosRef.current + 1;
+      const isJump = !isFirstTime && !isContinuous;
 
-      const volumes = candles.map(c => ({
-        time: c.time,
-        value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
-        color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
-      }));
+      // 第一次回放 或 跳跃（用户拖动进度条）：重新初始化所有数据
+      if (isFirstTime || isJump) {
+        const currentData = fullData.slice(0, playbackPosition);
 
-      // 更新图表数据
-      seriesRef.current.candle.setData(candles);
-      seriesRef.current.volume.setData(volumes);
-      updateIndicators(candles);
+        const candles = currentData.map(d => ({
+          time: Math.floor(d.time / 1000),
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close
+        }));
 
-      // 关键：设置滚动视口，跟随回放位置
-      // 显示最近30根K线，让新增K线清晰可见
-      const viewportSize = 30;
-      const viewEnd = Math.min(playbackPosition - 1, currentData.length - 1);
-      const viewStart = Math.max(0, viewEnd - viewportSize + 1);
+        const volumes = candles.map(c => ({
+          time: c.time,
+          value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+          color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+        }));
 
-      if (viewStart < currentData.length && viewEnd < currentData.length) {
-        const from = Math.floor(currentData[viewStart].time / 1000);
-        const to = Math.floor(currentData[viewEnd].time / 1000);
+        seriesRef.current.candle.setData(candles);
+        seriesRef.current.volume.setData(volumes);
+        updateIndicators(candles);
 
-        chartRef.current.timeScale().setVisibleRange({ from, to });
+        // 初始视口：显示最后20根K线
+        const viewportSize = 20;
+        if (candles.length >= viewportSize) {
+          const from = candles[candles.length - viewportSize].time;
+          const to = candles[candles.length - 1].time;
+          chartRef.current.timeScale().setVisibleRange({ from, to });
+        }
       }
+      // 连续回放：只添加新的一根K线
+      else if (isContinuous) {
+        const newData = fullData[playbackPosition - 1];
+        if (newData) {
+          const newCandle = {
+            time: Math.floor(newData.time / 1000),
+            open: newData.open,
+            high: newData.high,
+            low: newData.low,
+            close: newData.close
+          };
+          const newVolume = {
+            time: newCandle.time,
+            value: newData.volume,
+            color: newCandle.close >= newCandle.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+          };
+
+          // 使用 update 方法添加新K线
+          seriesRef.current.candle.update(newCandle);
+          seriesRef.current.volume.update(newVolume);
+
+          // 更新技术指标（需要重新计算所有数据）
+          const currentData = fullData.slice(0, playbackPosition);
+          const allCandles = currentData.map(d => ({
+            time: Math.floor(d.time / 1000),
+            open: d.open,
+            high: d.high,
+            low: d.low,
+            close: d.close
+          }));
+          updateIndicators(allCandles);
+
+          // 滚动视口跟随新K线
+          // 显示最近20根K线，使用 setTimeout 确保在图表更新后设置视口
+          const viewportSize = 20;
+          if (currentData.length >= viewportSize) {
+            const viewStart = currentData.length - viewportSize;
+            const from = Math.floor(currentData[viewStart].time / 1000);
+            const to = Math.floor(currentData[currentData.length - 1].time / 1000);
+
+            // 立即设置一次
+            chartRef.current.timeScale().setVisibleRange({ from, to });
+
+            // 延迟再设置一次，确保不被覆盖
+            setTimeout(() => {
+              if (chartRef.current) {
+                chartRef.current.timeScale().setVisibleRange({ from, to });
+              }
+            }, 10);
+          }
+        }
+      }
+
+      // 记录当前位置
+      lastPlaybackPosRef.current = playbackPosition;
     }
   }, [playbackPosition, fullData, targetIndex]);
 
