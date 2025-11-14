@@ -416,9 +416,9 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
-    // 如果位置为0，初始化显示前50根K线
-    if (playbackPosition === 0) {
-      renderChartData(fullData.slice(0, 50), true);
+    // 如果位置小于50，初始化到50（显示前50根K线）
+    if (playbackPosition < 50) {
+      setPlaybackPosition(50);
     }
 
     setIsPlaying(true);
@@ -430,10 +430,7 @@ export default function App({ dataService, version = 'local' }) {
 
   const resetPlayback = () => {
     setIsPlaying(false);
-    setPlaybackPosition(0);
-    if (fullData.length > 0) {
-      renderChartData(fullData.slice(0, 50)); // 显示前50根K线
-    }
+    setPlaybackPosition(50);
   };
 
   const handlePlaybackSpeedChange = (speed) => {
@@ -441,11 +438,8 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   const handlePlaybackPositionChange = (position) => {
-    setPlaybackPosition(position);
-    if (fullData.length > 0) {
-      const endIndex = Math.min(position + 50, fullData.length);
-      renderChartData(fullData.slice(0, endIndex));
-    }
+    const newPosition = Math.max(50, Math.min(position, fullData.length));
+    setPlaybackPosition(newPosition);
   };
 
   // 回放自动前进
@@ -454,9 +448,9 @@ export default function App({ dataService, version = 'local' }) {
       playbackIntervalRef.current = setInterval(() => {
         setPlaybackPosition(prev => {
           const next = prev + 1;
-          if (next >= fullData.length - 50) {
+          if (next >= fullData.length) {
             setIsPlaying(false);
-            return prev;
+            return fullData.length;
           }
           return next;
         });
@@ -477,11 +471,10 @@ export default function App({ dataService, version = 'local' }) {
 
   // 回放位置变化时更新图表
   useEffect(() => {
-    if (fullData.length > 0 && playbackPosition > 0) {
-      const endIndex = Math.min(playbackPosition + 50, fullData.length);
-      renderChartData(fullData.slice(0, endIndex));
+    if (fullData.length > 0 && playbackPosition >= 50) {
+      renderChartData(fullData.slice(0, playbackPosition), true);
     }
-  }, [playbackPosition]);
+  }, [playbackPosition, fullData]);
 
   // ========== 渲染图表数据（内部函数）==========
   const renderChartData = (data, isPlaybackMode = true) => {
@@ -1670,8 +1663,8 @@ export default function App({ dataService, version = 'local' }) {
               <div className="playback-slider">
                 <input
                   type="range"
-                  min={0}
-                  max={Math.max(0, fullData.length - 50)}
+                  min={50}
+                  max={fullData.length}
                   value={playbackPosition}
                   onChange={(e) => handlePlaybackPositionChange(parseInt(e.target.value))}
                   style={{ width: '100%' }}
