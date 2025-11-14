@@ -22,14 +22,16 @@ ON klines(symbol, interval);
 CREATE INDEX IF NOT EXISTS idx_open_time
 ON klines(open_time);
 
--- 查询历史记录表
+-- 查询历史记录表（观察列表）
 CREATE TABLE IF NOT EXISTS search_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   symbol TEXT NOT NULL,
   time TEXT NOT NULL,
   interval TEXT NOT NULL,
   price REAL NOT NULL,
-  created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+  zone_type TEXT DEFAULT 'bottom', -- 区域类型：bottom(兜底区) 或 top(探顶区)
+  created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+  updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
 );
 
 -- 创建索引

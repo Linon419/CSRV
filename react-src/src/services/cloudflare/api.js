@@ -90,3 +90,104 @@ export async function clearKlineCache() {
   alert('服务器版本暂不支持清空缓存功能');
   return Promise.resolve();
 }
+
+/**
+ * 获取观察列表
+ */
+export async function getWatchlist() {
+  try {
+    const response = await fetch(`${API_BASE}/watchlist`);
+
+    if (!response.ok) {
+      throw new Error(`获取观察列表失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      // 转换字段名：zone_type -> zoneType 以兼容前端
+      return result.data.map(item => ({
+        ...item,
+        zoneType: item.zone_type || 'bottom'
+      }));
+    }
+    return [];
+  } catch (error) {
+    console.error('获取观察列表失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 保存观察记录（自动判断新增或更新）
+ */
+export async function saveWatchlistItem(item) {
+  try {
+    const response = await fetch(`${API_BASE}/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symbol: item.symbol,
+        time: item.time,
+        interval: item.interval,
+        price: item.price,
+        zone_type: item.zoneType || 'bottom'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`保存失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('保存观察记录失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 删除观察记录
+ */
+export async function deleteWatchlistItem(id) {
+  try {
+    const response = await fetch(`${API_BASE}/watchlist`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+
+    if (!response.ok) {
+      throw new Error(`删除失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('删除观察记录失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 批量导入观察列表
+ */
+export async function importWatchlist(items) {
+  try {
+    const response = await fetch(`${API_BASE}/watchlist/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+
+    if (!response.ok) {
+      throw new Error(`导入失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('批量导入失败:', error);
+    throw error;
+  }
+}
