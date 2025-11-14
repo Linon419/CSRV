@@ -420,15 +420,11 @@ export default function App({ dataService, version = 'local' }) {
     // 计算回放起始位置：目标时间前20根K线（至少显示20根）
     const startPos = Math.max(20, targetIndex - 20);
 
-    console.log('开始回放:', { targetIndex, startPos, playbackPosition, fullDataLength: fullData.length });
-
     // 如果还没开始回放，初始化到起始位置
     if (playbackPosition === 0 || playbackPosition < startPos) {
-      console.log('设置回放位置到:', startPos);
       setPlaybackPosition(startPos);
     } else {
       // 如果已经在回放位置，强制刷新一次
-      console.log('强制刷新当前位置:', playbackPosition);
       renderChartData(fullData.slice(0, playbackPosition), true);
     }
 
@@ -459,13 +455,10 @@ export default function App({ dataService, version = 'local' }) {
   // 回放自动前进
   useEffect(() => {
     if (isPlaying && fullData.length > 0) {
-      console.log('启动回放 interval, 速度:', playbackSpeed);
       playbackIntervalRef.current = setInterval(() => {
         setPlaybackPosition(prev => {
           const next = prev + 1;
-          console.log('回放位置:', prev, '->', next);
           if (next >= fullData.length) {
-            console.log('回放完成');
             setIsPlaying(false);
             return fullData.length;
           }
@@ -474,7 +467,6 @@ export default function App({ dataService, version = 'local' }) {
       }, 1000 / playbackSpeed); // 根据速度调整间隔
     } else {
       if (playbackIntervalRef.current) {
-        console.log('停止回放 interval');
         clearInterval(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
       }
@@ -535,6 +527,26 @@ export default function App({ dataService, version = 'local' }) {
       }
     });
 
+    // 在回放模式下，先设置固定视图范围，再设置数据
+    if (isPlaybackMode && candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
+      // 固定视图范围：以目标时间为中心的150根K线的时间范围
+      // 这个范围在整个回放过程中保持不变
+      const viewStart = Math.max(0, targetIndex - 75);
+      const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+
+      // 使用完整数据的时间范围（固定不变）
+      const from = Math.floor(fullData[viewStart].time / 1000);
+      const to = Math.floor(fullData[viewEnd].time / 1000);
+
+      // 先设置视图范围
+      chartRef.current.timeScale().setVisibleRange({ from, to });
+
+      // 禁用自动缩放
+      chartRef.current.timeScale().applyOptions({
+        lockVisibleTimeRangeOnResize: true
+      });
+    }
+
     // 设置K线和成交量
     seriesRef.current.candle.setData(candles);
     seriesRef.current.volume.setData(volumes);
@@ -542,24 +554,17 @@ export default function App({ dataService, version = 'local' }) {
     // 设置技术指标
     updateIndicators(candles);
 
-    // 在回放模式下，保留目标价格线和"发布时间"标记
-    if (isPlaybackMode) {
-      // 回放模式：固定视图窗口的时间范围，K线从左向右填满窗口
-      if (candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
-        const windowSize = 150; // 视图窗口大小（固定）
+    // 回放模式：设置数据后再次确保视图范围不变
+    if (isPlaybackMode && candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
+      const viewStart = Math.max(0, targetIndex - 75);
+      const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+      const from = Math.floor(fullData[viewStart].time / 1000);
+      const to = Math.floor(fullData[viewEnd].time / 1000);
 
-        // 固定视图范围：以目标时间为中心的150根K线的时间范围
-        // 这个范围在整个回放过程中保持不变
-        const viewStart = Math.max(0, targetIndex - 75);
-        const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
-
-        // 使用完整数据的时间范围（固定不变）
-        const from = Math.floor(fullData[viewStart].time / 1000);
-        const to = Math.floor(fullData[viewEnd].time / 1000);
-
-        console.log('固定视图范围:', { targetIndex, viewStart, viewEnd, from, to, currentCandles: candles.length, fullDataLength: fullData.length });
+      // 强制设置视图范围（在 setData 之后）
+      setTimeout(() => {
         chartRef.current.timeScale().setVisibleRange({ from, to });
-      }
+      }, 0);
     } else {
       // 正常模式：自动滚动到最新位置
       if (candles.length > 0) {
