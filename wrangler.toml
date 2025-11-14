@@ -8,7 +8,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "backtest-db"
-database_id = "" # 运行 wrangler d1 create 后填入
+database_id = "29cca865-4d3b-4c5a-a099-acd31362a299" # 运行 wrangler d1 create 后填入
 
 # KV 存储绑定（可选，用于缓存热点数据）
 # [[kv_namespaces]]

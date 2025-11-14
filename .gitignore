@@ -5,5 +5,7 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# 构建输出目录（由 react-src 构建生成）
 public/assets/
 public/index.html
