@@ -209,21 +209,85 @@ export default function App({ dataService, version = 'local' }) {
     });
 
     // 创建MA系列
-    const ma5 = chart.addLineSeries({ color: 'orange', lineWidth: 1, lastValueVisible: false });
-    const ma10 = chart.addLineSeries({ color: 'gold', lineWidth: 1, lastValueVisible: false });
-    const ma20 = chart.addLineSeries({ color: 'blue', lineWidth: 1, lastValueVisible: false });
-    const ma60 = chart.addLineSeries({ color: 'purple', lineWidth: 1, lastValueVisible: false });
+    const ma5 = chart.addLineSeries({
+      color: 'orange',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ma10 = chart.addLineSeries({
+      color: 'gold',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ma20 = chart.addLineSeries({
+      color: 'blue',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ma60 = chart.addLineSeries({
+      color: 'purple',
+      lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
 
     // 创建EMA系列
-    const ema21 = chart.addLineSeries({ color: '#00bcd4', lineWidth: 1, visible: false, lastValueVisible: false });
-    const ema55 = chart.addLineSeries({ color: '#ff9800', lineWidth: 1, visible: false, lastValueVisible: false });
-    const ema100 = chart.addLineSeries({ color: '#e91e63', lineWidth: 1, visible: false, lastValueVisible: false });
-    const ema200 = chart.addLineSeries({ color: '#000000', lineWidth: 1, visible: false, lastValueVisible: false });
+    const ema21 = chart.addLineSeries({
+      color: '#00bcd4',
+      lineWidth: 1,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ema55 = chart.addLineSeries({
+      color: '#ff9800',
+      lineWidth: 1,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ema100 = chart.addLineSeries({
+      color: '#e91e63',
+      lineWidth: 1,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const ema200 = chart.addLineSeries({
+      color: '#000000',
+      lineWidth: 1,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
 
     // 创建布林带系列
-    const bbUpper = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false, lastValueVisible: false });
-    const bbMiddle = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, visible: false, lastValueVisible: false });
-    const bbLower = chart.addLineSeries({ color: '#2196f3', lineWidth: 1, lineStyle: 2, visible: false, lastValueVisible: false });
+    const bbUpper = chart.addLineSeries({
+      color: '#2196f3',
+      lineWidth: 1,
+      lineStyle: 2,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const bbMiddle = chart.addLineSeries({
+      color: '#2196f3',
+      lineWidth: 1,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
+    const bbLower = chart.addLineSeries({
+      color: '#2196f3',
+      lineWidth: 1,
+      lineStyle: 2,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false
+    });
 
     // 图表点击事件
     chart.subscribeClick((param) => {
@@ -295,12 +359,14 @@ export default function App({ dataService, version = 'local' }) {
       const macdLine = macdChart.addLineSeries({
         color: '#2962FF',
         lineWidth: 2,
-        lastValueVisible: false
+        lastValueVisible: false,
+        priceLineVisible: false
       });
       const macdSignal = macdChart.addLineSeries({
         color: '#FF6D00',
         lineWidth: 2,
-        lastValueVisible: false
+        lastValueVisible: false,
+        priceLineVisible: false
       });
       const macdHistogram = macdChart.addHistogramSeries({
         color: '#26a69a'
