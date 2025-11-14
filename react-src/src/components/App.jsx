@@ -1046,8 +1046,10 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
-    console.log('保存记录 - 当前 zoneType:', zoneType); // 调试日志
-    const record = { symbol, time, interval, price, zoneType };
+    // 确保 zoneType 有有效值，如果是 undefined 则默认为 'bottom'
+    const finalZoneType = zoneType || 'bottom';
+    console.log('保存记录 - 当前 zoneType:', zoneType, '最终使用:', finalZoneType); // 调试日志
+    const record = { symbol, time, interval, price, zoneType: finalZoneType };
     console.log('保存的记录对象:', record); // 调试日志
 
     // 检查是否存在相同币种+相同时间的记录
@@ -1163,7 +1165,8 @@ export default function App({ dataService, version = 'local' }) {
     setInterval(item.interval);
     setTime(item.time);
     setPrice(item.price);
-    setZoneType(item.zoneType);
+    // 如果历史记录中没有zoneType（旧数据），默认设置为bottom
+    setZoneType(item.zoneType || 'bottom');
 
     // 直接使用item的值加载数据
     if (!item.symbol || !item.time || !item.price) return;
@@ -2128,7 +2131,7 @@ export default function App({ dataService, version = 'local' }) {
                     <div onClick={() => handleHistoryClick(item)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                         <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span>{item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}</span>
+                          <span>{item.symbol} - {(item.zoneType === 'bottom' || !item.zoneType) ? '兜底区' : '探顶区'}</span>
                           {isDuplicate && (
                             <span style={{
                               fontSize: '9px',
