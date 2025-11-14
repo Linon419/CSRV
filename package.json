@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "潜力区币回测工具 - Cloudflare部署版",
   "scripts": {
-    "dev": "wrangler pages dev public --d1 DB",
-    "deploy": "wrangler pages deploy public",
+    "dev": "npm --prefix react-src run dev:cloudflare",
+    "build": "npm --prefix react-src run build:cloudflare",
+    "deploy": "npm run build && wrangler pages deploy public",
+    "dev:wrangler": "wrangler pages dev public --d1 DB",
     "d1:create": "wrangler d1 create backtest-db",
     "d1:init": "wrangler d1 execute backtest-db --file=./schema.sql"
   },
