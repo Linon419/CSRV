@@ -1046,7 +1046,9 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
+    console.log('保存记录 - 当前 zoneType:', zoneType); // 调试日志
     const record = { symbol, time, interval, price, zoneType };
+    console.log('保存的记录对象:', record); // 调试日志
 
     // 检查是否存在相同币种+相同时间的记录
     const existingIndex = history.findIndex(
