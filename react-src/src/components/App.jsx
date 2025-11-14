@@ -77,6 +77,7 @@ export default function App({ dataService, version = 'local' }) {
   const [filterSymbol, setFilterSymbol] = useState('');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
+  const [sortType, setSortType] = useState('time-desc'); // 排序类型：time-desc, time-asc, name-asc, name-desc
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [editForm, setEditForm] = useState({ time: '', price: '', zoneType: 'bottom' });
@@ -938,7 +939,24 @@ export default function App({ dataService, version = 'local' }) {
       filtered = filtered.filter(item => new Date(item.time).getTime() <= endTs);
     }
 
-    filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+    // 根据sortType排序
+    switch (sortType) {
+      case 'time-desc':
+        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+        break;
+      case 'time-asc':
+        filtered.sort((a, b) => new Date(a.time) - new Date(b.time));
+        break;
+      case 'name-asc':
+        filtered.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        break;
+      case 'name-desc':
+        filtered.sort((a, b) => b.symbol.localeCompare(a.symbol));
+        break;
+      default:
+        filtered.sort((a, b) => new Date(b.time) - new Date(a.time));
+    }
+
     setFilteredHistory(filtered);
   };
 
@@ -946,7 +964,10 @@ export default function App({ dataService, version = 'local' }) {
     setFilterSymbol('');
     setFilterStart('');
     setFilterEnd('');
-    setFilteredHistory(history);
+    setSortType('time-desc');
+    // 重置后按时间倒序排序
+    const sorted = [...history].sort((a, b) => new Date(b.time) - new Date(a.time));
+    setFilteredHistory(sorted);
   };
 
   const clearHistory = () => {
@@ -1854,6 +1875,18 @@ export default function App({ dataService, version = 'local' }) {
                   value={filterEnd}
                   onChange={(e) => setFilterEnd(e.target.value)}
                 />
+              </label>
+              <label>
+                排序方式
+                <select
+                  value={sortType}
+                  onChange={(e) => setSortType(e.target.value)}
+                >
+                  <option value="time-desc">时间倒序（最新在前）</option>
+                  <option value="time-asc">时间正序（最旧在前）</option>
+                  <option value="name-asc">名称正序（A-Z）</option>
+                  <option value="name-desc">名称倒序（Z-A）</option>
+                </select>
               </label>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button onClick={applyFilter}>筛选</button>
