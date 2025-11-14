@@ -4,6 +4,20 @@
  * 用于代理请求币安API，避免CORS问题
  */
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// 处理 OPTIONS 预检请求
+export async function onRequestOptions() {
+  return new Response(null, {
+    headers: corsHeaders
+  });
+}
+
 export async function onRequestGet(context: { request: Request }) {
   const { request } = context;
   const url = new URL(request.url);
@@ -17,7 +31,10 @@ export async function onRequestGet(context: { request: Request }) {
   if (!symbol || !interval || !startTime || !endTime) {
     return new Response(JSON.stringify({ error: '缺少必要参数' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
 
@@ -26,19 +43,31 @@ export async function onRequestGet(context: { request: Request }) {
     const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
 
     const response = await fetch(binanceUrl);
+
+    if (!response.ok) {
+      throw new Error(`Binance API error: ${response.status}`);
+    }
+
     const data = await response.json();
 
     return new Response(JSON.stringify(data), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=60'  // 缓存1分钟
+        'Cache-Control': 'public, max-age=60',  // 缓存1分钟
+        ...corsHeaders
       }
     });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Binance proxy error:', error);
+    return new Response(JSON.stringify({
+      error: error.message || 'Unknown error',
+      details: error.toString()
+    }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
 }

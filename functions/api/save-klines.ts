@@ -8,6 +8,20 @@ interface Env {
   DB: D1Database;
 }
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// 处理 CORS 预检请求
+export async function onRequestOptions() {
+  return new Response(null, {
+    headers: corsHeaders
+  });
+}
+
 export async function onRequestPost(context: { request: Request; env: Env }) {
   const { request, env } = context;
 
@@ -23,7 +37,10 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     if (!symbol || !interval || !klines || !Array.isArray(klines)) {
       return new Response(JSON.stringify({ error: '参数格式错误' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
       });
     }
 
@@ -56,24 +73,20 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     }), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        ...corsHeaders
       }
     });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Save klines error:', error);
+    return new Response(JSON.stringify({
+      error: error.message || 'Unknown error',
+      details: error.toString()
+    }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
-}
-
-// 处理 CORS 预检请求
-export async function onRequestOptions() {
-  return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
-  });
 }

@@ -7,6 +7,20 @@ interface Env {
   DB: D1Database;
 }
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+// 处理 OPTIONS 预检请求
+export async function onRequestOptions() {
+  return new Response(null, {
+    headers: corsHeaders
+  });
+}
+
 export async function onRequestGet(context: { request: Request; env: Env }) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -19,7 +33,10 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
   if (!symbol || !interval || !startTime || !endTime) {
     return new Response(JSON.stringify({ error: '缺少必要参数' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
 
@@ -47,13 +64,20 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
     return new Response(JSON.stringify(data), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        ...corsHeaders
       }
     });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error('Get klines error:', error);
+    return new Response(JSON.stringify({
+      error: error.message || 'Unknown error',
+      details: error.toString()
+    }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
     });
   }
 }
