@@ -419,6 +419,11 @@ export default function App({ dataService, version = 'local' }) {
     // 如果位置小于50，初始化到50（显示前50根K线）
     if (playbackPosition < 50) {
       setPlaybackPosition(50);
+      // 立即显示前50根K线
+      renderChartData(fullData.slice(0, 50), true);
+    } else {
+      // 如果已经在回放中间，立即刷新当前位置
+      renderChartData(fullData.slice(0, playbackPosition), true);
     }
 
     setIsPlaying(true);
@@ -431,6 +436,10 @@ export default function App({ dataService, version = 'local' }) {
   const resetPlayback = () => {
     setIsPlaying(false);
     setPlaybackPosition(50);
+    // 立即显示前50根K线
+    if (fullData.length > 0) {
+      renderChartData(fullData.slice(0, 50), true);
+    }
   };
 
   const handlePlaybackSpeedChange = (speed) => {
