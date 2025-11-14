@@ -1982,12 +1982,22 @@ export default function App({ dataService, version = 'local' }) {
 
             {/* 历史记录列表 */}
             <div>
-              {filteredHistory.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`history-item ${item.zoneType}-zone`}
-                  style={{ cursor: editingIndex === idx ? 'default' : 'pointer' }}
-                >
+              {filteredHistory.map((item, idx) => {
+                // 统计当前币种在列表中出现的次数
+                const symbolCount = filteredHistory.filter(h => h.symbol === item.symbol).length;
+                // 如果出现多次，添加背景色
+                const isDuplicate = symbolCount > 1;
+                const backgroundColor = isDuplicate ? 'rgba(255, 193, 7, 0.1)' : 'transparent';
+
+                return (
+                  <div
+                    key={idx}
+                    className={`history-item ${item.zoneType}-zone`}
+                    style={{
+                      cursor: editingIndex === idx ? 'default' : 'pointer',
+                      backgroundColor: backgroundColor
+                    }}
+                  >
                   {editingIndex === idx ? (
                     // 编辑模式
                     <div onClick={(e) => e.stopPropagation()}>
@@ -2049,8 +2059,20 @@ export default function App({ dataService, version = 'local' }) {
                     // 显示模式
                     <div onClick={() => handleHistoryClick(item)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <div style={{ fontWeight: 'bold' }}>
-                          {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
+                        <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>{item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}</span>
+                          {isDuplicate && (
+                            <span style={{
+                              fontSize: '9px',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              backgroundColor: '#ff9800',
+                              color: 'white',
+                              fontWeight: 'normal'
+                            }}>
+                              ×{symbolCount}
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: '2px' }}>
                           <button
@@ -2087,7 +2109,8 @@ export default function App({ dataService, version = 'local' }) {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* 控制按钮 */}
