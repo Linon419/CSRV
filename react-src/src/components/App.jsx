@@ -24,6 +24,25 @@ import {
 import '../styles/global.css';
 
 /**
+ * 将 UTC 时间戳转换为本地时区显示（LightweightCharts 官方推荐方法）
+ * 参考：https://tradingview.github.io/lightweight-charts/docs/time-zones
+ * @param {number} originalTime - UTC 时间戳（秒）
+ * @returns {number} 转换后的时间戳（秒），用于本地时区显示
+ */
+function timeToLocal(originalTime) {
+  const d = new Date(originalTime * 1000);
+  return Date.UTC(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    d.getHours(),
+    d.getMinutes(),
+    d.getSeconds(),
+    d.getMilliseconds()
+  ) / 1000;
+}
+
+/**
  * 主应用组件（通用版本，通过props注入数据服务）
  */
 export default function App({ dataService, version = 'local' }) {
@@ -186,11 +205,12 @@ export default function App({ dataService, version = 'local' }) {
       },
       localization: {
         timeFormatter: (timestamp) => {
+          // timestamp 已通过 timeToLocal 转换，使用 UTC 方法来格式化显示本地时间
           const date = new Date(timestamp * 1000);
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const hours = String(date.getHours()).padStart(2, '0');
-          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
           return `${month}-${day} ${hours}:${minutes}`;
         }
       },
@@ -331,11 +351,12 @@ export default function App({ dataService, version = 'local' }) {
         },
         localization: {
           timeFormatter: (timestamp) => {
+            // timestamp 已通过 timeToLocal 转换，使用 UTC 方法格式化
             const date = new Date(timestamp * 1000);
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
             return `${month}-${day} ${hours}:${minutes}`;
           }
         },
@@ -624,16 +645,16 @@ export default function App({ dataService, version = 'local' }) {
         const currentData = fullData.slice(0, playbackPosition);
 
         const candles = currentData.map(d => ({
-          time: Math.floor(d.time / 1000),
+          time: timeToLocal(Math.floor(d.time / 1000)),
           open: d.open,
           high: d.high,
           low: d.low,
           close: d.close
         }));
 
-        const volumes = candles.map(c => ({
+        const volumes = candles.map((c, index) => ({
           time: c.time,
-          value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+          value: currentData[index]?.volume || 0,
           color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
         }));
 
@@ -654,16 +675,16 @@ export default function App({ dataService, version = 'local' }) {
         const currentData = fullData.slice(0, playbackPosition);
 
         const candles = currentData.map(d => ({
-          time: Math.floor(d.time / 1000),
+          time: timeToLocal(Math.floor(d.time / 1000)),
           open: d.open,
           high: d.high,
           low: d.low,
           close: d.close
         }));
 
-        const volumes = candles.map(c => ({
+        const volumes = candles.map((c, index) => ({
           time: c.time,
-          value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+          value: currentData[index]?.volume || 0,
           color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
         }));
 
@@ -699,16 +720,16 @@ export default function App({ dataService, version = 'local' }) {
   // ========== 渲染图表数据（内部函数）==========
   const renderChartData = (data, isPlaybackMode = true) => {
     const candles = data.map(d => ({
-      time: Math.floor(d.time / 1000),
+      time: timeToLocal(Math.floor(d.time / 1000)),
       open: d.open,
       high: d.high,
       low: d.low,
       close: d.close
     }));
 
-    const volumes = candles.map(c => ({
+    const volumes = candles.map((c, index) => ({
       time: c.time,
-      value: data.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+      value: data[index]?.volume || 0,
       color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
     }));
 
@@ -794,16 +815,16 @@ export default function App({ dataService, version = 'local' }) {
     setIsPlaying(false);
 
     const candles = data.map(d => ({
-      time: Math.floor(d.time / 1000),
+      time: timeToLocal(Math.floor(d.time / 1000)),
       open: d.open,
       high: d.high,
       low: d.low,
       close: d.close
     }));
 
-    const volumes = candles.map(c => ({
+    const volumes = candles.map((c, index) => ({
       time: c.time,
-      value: data.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+      value: data[index]?.volume || 0,
       color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
     }));
 
@@ -843,7 +864,7 @@ export default function App({ dataService, version = 'local' }) {
 
     // 定位到目标时间
     const targetDate = new Date(targetTime);
-    const targetTimestamp = Math.floor(targetDate.getTime() / 1000);
+    const targetTimestamp = timeToLocal(Math.floor(targetDate.getTime() / 1000));
 
     let nearest = null;
     let minDiff = Infinity;
@@ -1048,6 +1069,36 @@ export default function App({ dataService, version = 'local' }) {
         break;
       case 'name-desc':
         sorted.sort((a, b) => b.symbol.localeCompare(a.symbol));
+        break;
+      case 'count-desc':
+        // 按出现次数排序（次数多的在前）
+        {
+          const symbolCount = {};
+          list.forEach(item => {
+            symbolCount[item.symbol] = (symbolCount[item.symbol] || 0) + 1;
+          });
+          sorted.sort((a, b) => {
+            const countDiff = symbolCount[b.symbol] - symbolCount[a.symbol];
+            if (countDiff !== 0) return countDiff;
+            // 次数相同时，按时间倒序
+            return new Date(b.time) - new Date(a.time);
+          });
+        }
+        break;
+      case 'count-asc':
+        // 按出现次数排序（次数少的在前）
+        {
+          const symbolCount = {};
+          list.forEach(item => {
+            symbolCount[item.symbol] = (symbolCount[item.symbol] || 0) + 1;
+          });
+          sorted.sort((a, b) => {
+            const countDiff = symbolCount[a.symbol] - symbolCount[b.symbol];
+            if (countDiff !== 0) return countDiff;
+            // 次数相同时，按时间倒序
+            return new Date(b.time) - new Date(a.time);
+          });
+        }
         break;
       default:
         sorted.sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -1489,7 +1540,7 @@ export default function App({ dataService, version = 'local' }) {
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
-        time: Math.floor(selectedPoint.time / 1000),
+        time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
         position: 'belowBar',
         color: '#26a69a',
         shape: 'arrowUp',
@@ -1514,7 +1565,7 @@ export default function App({ dataService, version = 'local' }) {
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
-        time: Math.floor(selectedPoint.time / 1000),
+        time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
         position: 'aboveBar',
         color: '#ef5350',
         shape: 'arrowDown',
@@ -1543,7 +1594,7 @@ export default function App({ dataService, version = 'local' }) {
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
-        time: Math.floor(selectedPoint.time / 1000),
+        time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
         position: positionState.currentPosition.type === 'long' ? 'belowBar' : 'aboveBar',
         color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350',
         shape: 'circle',
@@ -1568,7 +1619,7 @@ export default function App({ dataService, version = 'local' }) {
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
-        time: Math.floor(selectedPoint.time / 1000),
+        time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
         position: positionState.currentPosition.type === 'long' ? 'aboveBar' : 'belowBar',
         color: '#ff9800',
         shape: 'circle',
@@ -1594,7 +1645,7 @@ export default function App({ dataService, version = 'local' }) {
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
-        time: Math.floor(selectedPoint.time / 1000),
+        time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
         position: posType === 'long' ? 'aboveBar' : 'belowBar',
         color: '#9e9e9e',
         shape: 'square',
@@ -2135,6 +2186,8 @@ export default function App({ dataService, version = 'local' }) {
                   <option value="time-asc">时间正序（最旧在前）</option>
                   <option value="name-asc">名称正序（A-Z）</option>
                   <option value="name-desc">名称倒序（Z-A）</option>
+                  <option value="count-desc">出现次数（多到少）</option>
+                  <option value="count-asc">出现次数（少到多）</option>
                 </select>
               </label>
               <div style={{ display: 'flex', gap: '4px' }}>
@@ -2303,8 +2356,19 @@ export default function App({ dataService, version = 'local' }) {
               <button onClick={handleClearCache}>清缓存</button>
             </div>
             {history.length > 0 && (
-              <div style={{ fontSize: '10px', color: '#666', marginTop: '8px', padding: '4px 8px', background: '#fff3cd', borderRadius: '3px', border: '1px solid #ffc107' }}>
-                💡 提示：数据仅保存在当前浏览器，请定期导出备份
+              <div style={{
+                fontSize: '10px',
+                color: '#666',
+                marginTop: '8px',
+                padding: '4px 8px',
+                background: version === 'cloudflare' ? '#d4edda' : '#fff3cd',
+                borderRadius: '3px',
+                border: version === 'cloudflare' ? '1px solid #28a745' : '1px solid #ffc107'
+              }}>
+                {version === 'cloudflare'
+                  ? '✅ 数据已同步到云端数据库，建议定期导出备份'
+                  : '💡 提示：数据仅保存在当前浏览器，请定期导出备份'
+                }
               </div>
             )}
           </div>
