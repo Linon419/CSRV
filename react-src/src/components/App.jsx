@@ -423,9 +423,6 @@ export default function App({ dataService, version = 'local' }) {
     // 如果还没开始回放，初始化到起始位置
     if (playbackPosition === 0 || playbackPosition < startPos) {
       setPlaybackPosition(startPos);
-    } else {
-      // 如果已经在回放位置，强制刷新一次
-      renderChartData(fullData.slice(0, playbackPosition), true);
     }
 
     setIsPlaying(true);
@@ -482,31 +479,41 @@ export default function App({ dataService, version = 'local' }) {
   // 回放位置变化时更新图表
   useEffect(() => {
     const startPos = Math.max(20, targetIndex - 20);
-    if (fullData.length > 0 && playbackPosition >= startPos) {
-      // 如果是第一次（刚开始回放），用 setData 初始化
-      if (playbackPosition === startPos) {
-        renderChartData(fullData.slice(0, playbackPosition), true);
-      } else {
-        // 后续回放：只添加新的一根K线，使用 update 方法
-        const newData = fullData[playbackPosition - 1];
-        if (newData && seriesRef.current.candle) {
-          const newCandle = {
-            time: Math.floor(newData.time / 1000),
-            open: newData.open,
-            high: newData.high,
-            low: newData.low,
-            close: newData.close
-          };
-          const newVolume = {
-            time: newCandle.time,
-            value: newData.volume,
-            color: newCandle.close >= newCandle.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
-          };
+    if (fullData.length > 0 && playbackPosition >= startPos && chartRef.current && seriesRef.current.candle) {
+      // 获取当前回放位置的数据切片
+      const currentData = fullData.slice(0, playbackPosition);
 
-          // 使用 update 方法添加新K线，不会触发视图范围变化
-          seriesRef.current.candle.update(newCandle);
-          seriesRef.current.volume.update(newVolume);
-        }
+      // 转换为K线格式
+      const candles = currentData.map(d => ({
+        time: Math.floor(d.time / 1000),
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.close
+      }));
+
+      const volumes = candles.map(c => ({
+        time: c.time,
+        value: currentData.find(d => Math.floor(d.time / 1000) === c.time)?.volume || 0,
+        color: c.close >= c.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+      }));
+
+      // 更新图表数据
+      seriesRef.current.candle.setData(candles);
+      seriesRef.current.volume.setData(volumes);
+      updateIndicators(candles);
+
+      // 关键：设置滚动视口，跟随回放位置
+      // 显示最近30根K线，让新增K线清晰可见
+      const viewportSize = 30;
+      const viewEnd = Math.min(playbackPosition - 1, currentData.length - 1);
+      const viewStart = Math.max(0, viewEnd - viewportSize + 1);
+
+      if (viewStart < currentData.length && viewEnd < currentData.length) {
+        const from = Math.floor(currentData[viewStart].time / 1000);
+        const to = Math.floor(currentData[viewEnd].time / 1000);
+
+        chartRef.current.timeScale().setVisibleRange({ from, to });
       }
     }
   }, [playbackPosition, fullData, targetIndex]);
