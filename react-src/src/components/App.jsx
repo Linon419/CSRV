@@ -419,10 +419,8 @@ export default function App({ dataService, version = 'local' }) {
     // 如果位置小于50，初始化到50（显示前50根K线）
     if (playbackPosition < 50) {
       setPlaybackPosition(50);
-      // 立即显示前50根K线
-      renderChartData(fullData.slice(0, 50), true);
     } else {
-      // 如果已经在回放中间，立即刷新当前位置
+      // 如果已经在回放位置，强制刷新一次
       renderChartData(fullData.slice(0, playbackPosition), true);
     }
 
@@ -436,10 +434,6 @@ export default function App({ dataService, version = 'local' }) {
   const resetPlayback = () => {
     setIsPlaying(false);
     setPlaybackPosition(50);
-    // 立即显示前50根K线
-    if (fullData.length > 0) {
-      renderChartData(fullData.slice(0, 50), true);
-    }
   };
 
   const handlePlaybackSpeedChange = (speed) => {
@@ -546,15 +540,24 @@ export default function App({ dataService, version = 'local' }) {
           // 忽略错误
         }
       }
-    }
 
-    // 自动滚动到最新位置
-    if (candles.length > 0) {
-      const lastCandle = candles[candles.length - 1];
-      const startIdx = Math.max(0, candles.length - 100);
-      const from = candles[startIdx].time;
-      const to = lastCandle.time;
-      chartRef.current.timeScale().setVisibleRange({ from, to });
+      // 回放模式：固定视图范围，让K线从左向右增长
+      // 视图始终显示从第一根K线开始的100根（或全部如果少于100根）
+      if (candles.length > 0) {
+        const visibleCount = Math.min(100, candles.length);
+        const from = candles[0].time;
+        const to = candles[visibleCount - 1].time;
+        chartRef.current.timeScale().setVisibleRange({ from, to });
+      }
+    } else {
+      // 正常模式：自动滚动到最新位置
+      if (candles.length > 0) {
+        const lastCandle = candles[candles.length - 1];
+        const startIdx = Math.max(0, candles.length - 100);
+        const from = candles[startIdx].time;
+        const to = lastCandle.time;
+        chartRef.current.timeScale().setVisibleRange({ from, to });
+      }
     }
   };
 
