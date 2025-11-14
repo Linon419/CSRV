@@ -862,10 +862,15 @@ export default function App({ dataService, version = 'local' }) {
 
   // ========== 交易对自动补全 ==========
   const handleSymbolBlur = () => {
-    if (symbol && !symbol.toUpperCase().endsWith('USDT')) {
-      setSymbol(symbol.toUpperCase() + 'USDT');
-    } else if (symbol) {
-      setSymbol(symbol.toUpperCase());
+    if (!symbol) return;
+
+    // 先去除前后空格
+    const trimmedSymbol = symbol.trim().toUpperCase();
+
+    if (!trimmedSymbol.endsWith('USDT')) {
+      setSymbol(trimmedSymbol + 'USDT');
+    } else {
+      setSymbol(trimmedSymbol);
     }
   };
 
