@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: resolve(__dirname, '../public'),
-    emptyOutDir: true,
+    emptyOutDir: true
+    // 移除 rollupOptions，使用默认的 index.html
   },
   resolve: {
     alias: {
