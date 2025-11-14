@@ -58,6 +58,7 @@ export default function App({ dataService, version = 'local' }) {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [playbackPosition, setPlaybackPosition] = useState(0);
   const [fullData, setFullData] = useState([]);
+  const [targetIndex, setTargetIndex] = useState(0); // 目标时间在数据中的索引
   const playbackIntervalRef = useRef(null);
 
   // 持仓状态
@@ -416,9 +417,12 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
-    // 如果位置小于50，初始化到50（显示前50根K线）
-    if (playbackPosition < 50) {
-      setPlaybackPosition(50);
+    // 计算回放起始位置：目标时间前20根K线（至少显示20根）
+    const startPos = Math.max(20, targetIndex - 20);
+
+    // 如果还没开始回放，初始化到起始位置
+    if (playbackPosition === 0 || playbackPosition < startPos) {
+      setPlaybackPosition(startPos);
     } else {
       // 如果已经在回放位置，强制刷新一次
       renderChartData(fullData.slice(0, playbackPosition), true);
@@ -433,7 +437,9 @@ export default function App({ dataService, version = 'local' }) {
 
   const resetPlayback = () => {
     setIsPlaying(false);
-    setPlaybackPosition(50);
+    // 重置到目标时间前20根K线
+    const startPos = Math.max(20, targetIndex - 20);
+    setPlaybackPosition(startPos);
   };
 
   const handlePlaybackSpeedChange = (speed) => {
@@ -441,7 +447,8 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   const handlePlaybackPositionChange = (position) => {
-    const newPosition = Math.max(50, Math.min(position, fullData.length));
+    const startPos = Math.max(20, targetIndex - 20);
+    const newPosition = Math.max(startPos, Math.min(position, fullData.length));
     setPlaybackPosition(newPosition);
   };
 
@@ -474,10 +481,11 @@ export default function App({ dataService, version = 'local' }) {
 
   // 回放位置变化时更新图表
   useEffect(() => {
-    if (fullData.length > 0 && playbackPosition >= 50) {
+    const startPos = Math.max(20, targetIndex - 20);
+    if (fullData.length > 0 && playbackPosition >= startPos) {
       renderChartData(fullData.slice(0, playbackPosition), true);
     }
-  }, [playbackPosition, fullData]);
+  }, [playbackPosition, fullData, targetIndex]);
 
   // ========== 渲染图表数据（内部函数）==========
   const renderChartData = (data, isPlaybackMode = true) => {
@@ -526,27 +534,16 @@ export default function App({ dataService, version = 'local' }) {
     // 设置技术指标
     updateIndicators(candles);
 
-    // 在回放模式下，清除所有标记和价格线（避免剧透）
+    // 在回放模式下，保留目标价格线和"发布时间"标记
     if (isPlaybackMode) {
-      // 清除标记
-      seriesRef.current.candle.setMarkers([]);
-
-      // 清除价格线
-      if (currentPriceLineRef.current) {
-        try {
-          seriesRef.current.candle.removePriceLine(currentPriceLineRef.current);
-          currentPriceLineRef.current = null;
-        } catch (e) {
-          // 忽略错误
-        }
-      }
-
-      // 回放模式：固定视图宽度，基于完整数据的前150根K线的时间范围
+      // 回放模式：以目标时间为中心，固定显示150根K线的范围
       // 这样K线会从左向右逐步填满固定的视图窗口
-      if (candles.length > 0 && fullData.length > 0) {
-        const from = Math.floor(fullData[0].time / 1000);
-        const viewRangeCount = Math.min(150, fullData.length);
-        const to = Math.floor(fullData[viewRangeCount - 1].time / 1000);
+      if (candles.length > 0 && fullData.length > 0 && targetIndex > 0) {
+        // 视图范围：目标时间前后各75根K线（共150根）
+        const viewStart = Math.max(0, targetIndex - 75);
+        const viewEnd = Math.min(fullData.length - 1, targetIndex + 75);
+        const from = Math.floor(fullData[viewStart].time / 1000);
+        const to = Math.floor(fullData[viewEnd].time / 1000);
         chartRef.current.timeScale().setVisibleRange({ from, to });
       }
     } else {
@@ -641,6 +638,10 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.candle.setMarkers(markersRef.current);
 
       const idx = candles.findIndex(c => c.time === nearest.time);
+
+      // 保存目标索引用于回放
+      setTargetIndex(idx);
+
       const from = candles[Math.max(0, idx - 80)].time;
       const to = candles[Math.min(candles.length - 1, idx + 80)].time;
       chartRef.current.timeScale().setVisibleRange({ from, to });
@@ -1675,7 +1676,7 @@ export default function App({ dataService, version = 'local' }) {
               <div className="playback-slider">
                 <input
                   type="range"
-                  min={50}
+                  min={Math.max(20, targetIndex - 20)}
                   max={fullData.length}
                   value={playbackPosition}
                   onChange={(e) => handlePlaybackPositionChange(parseInt(e.target.value))}
