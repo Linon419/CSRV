@@ -1009,7 +1009,22 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   // ========== 历史记录管理 ==========
-  const loadHistory = () => {
+  const loadHistory = async () => {
+    // Cloudflare版本：从API加载
+    if (version === 'cloudflare' && dataService.getWatchlist) {
+      try {
+        const watchlist = await dataService.getWatchlist();
+        setHistory(watchlist);
+        setFilteredHistory(watchlist);
+        console.log(`从云端加载了 ${watchlist.length} 条观察记录`);
+      } catch (error) {
+        console.error('加载观察列表失败:', error);
+        alert('加载观察列表失败，请检查网络连接');
+      }
+      return;
+    }
+
+    // 本地版本：从localStorage加载
     const saved = localStorage.getItem('searchHistory');
     if (saved) {
       const historyData = JSON.parse(saved);
@@ -1040,7 +1055,7 @@ export default function App({ dataService, version = 'local' }) {
     return sorted;
   };
 
-  const saveToHistory = () => {
+  const saveToHistory = async () => {
     if (!symbol || !time || !price) {
       alert('请输入完整参数');
       return;
@@ -1052,12 +1067,30 @@ export default function App({ dataService, version = 'local' }) {
     const record = { symbol, time, interval, price, zoneType: finalZoneType };
     console.log('保存的记录对象:', record); // 调试日志
 
+    // Cloudflare版本：使用API保存
+    if (version === 'cloudflare' && dataService.saveWatchlistItem) {
+      try {
+        const result = await dataService.saveWatchlistItem(record);
+        if (result.success) {
+          // 重新加载列表
+          await loadHistory();
+          alert(result.action === 'updated' ? '已更新观察列表中的记录' : '已保存到观察列表');
+        }
+      } catch (error) {
+        console.error('保存失败:', error);
+        alert('保存失败，请检查网络连接');
+      }
+      return;
+    }
+
+    // 本地版本：使用localStorage保存
     // 检查是否存在相同币种+相同时间的记录
     const existingIndex = history.findIndex(
       item => item.symbol === symbol && item.time === time
     );
 
     let newHistory;
+    let isNewRecord = false;
     if (existingIndex !== -1) {
       // 存在相同记录，更新它
       newHistory = [...history];
@@ -1066,6 +1099,7 @@ export default function App({ dataService, version = 'local' }) {
     } else {
       // 不存在，添加新记录
       newHistory = [record, ...history];
+      isNewRecord = true;
       alert('已保存到观察列表');
     }
 
@@ -1075,6 +1109,21 @@ export default function App({ dataService, version = 'local' }) {
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
     setFilteredHistory(newHistory);
+
+    // 备份提醒：每10条新记录提醒一次（仅本地版本）
+    if (isNewRecord && newHistory.length % 10 === 0 && newHistory.length > 0) {
+      const lastBackupReminder = localStorage.getItem('lastBackupReminder');
+      const now = Date.now();
+      // 每24小时最多提醒一次
+      if (!lastBackupReminder || now - parseInt(lastBackupReminder) > 24 * 60 * 60 * 1000) {
+        localStorage.setItem('lastBackupReminder', now.toString());
+        setTimeout(() => {
+          if (confirm(`📊 您已保存 ${newHistory.length} 条观察记录！\n\n💡 提示：观察列表仅保存在当前浏览器中\n换浏览器或清除缓存会导致数据丢失\n\n是否现在备份数据？`)) {
+            exportHistory();
+          }
+        }, 500);
+      }
+    }
   };
 
   const applyFilter = () => {
@@ -1112,6 +1161,13 @@ export default function App({ dataService, version = 'local' }) {
   };
 
   const clearHistory = () => {
+    // Cloudflare版本：不支持批量清空（数据存在云端，删除需谨慎）
+    if (version === 'cloudflare') {
+      alert('云端版本暂不支持批量清空功能\n如需清理数据，请单独删除记录');
+      return;
+    }
+
+    // 本地版本：清空localStorage
     if (!confirm('确定要清空所有历史记录吗？')) return;
     localStorage.removeItem('searchHistory');
     setHistory([]);
@@ -1134,16 +1190,32 @@ export default function App({ dataService, version = 'local' }) {
     URL.revokeObjectURL(url);
   };
 
-  const importHistory = (event) => {
+  const importHistory = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
         if (!Array.isArray(data)) throw new Error('文件格式错误');
 
+        // Cloudflare版本：使用批量导入API
+        if (version === 'cloudflare' && dataService.importWatchlist) {
+          try {
+            const result = await dataService.importWatchlist(data);
+            if (result.success) {
+              await loadHistory();
+              alert(`导入成功！\n新增: ${result.imported} 条\n更新: ${result.updated} 条\n失败: ${result.failed} 条`);
+            }
+          } catch (error) {
+            console.error('导入失败:', error);
+            alert('导入失败: ' + error.message);
+          }
+          return;
+        }
+
+        // 本地版本：合并到localStorage
         const mergedHistory = [...history, ...data];
         mergedHistory.sort((a, b) => new Date(b.time) - new Date(a.time));
 
@@ -1315,10 +1387,30 @@ export default function App({ dataService, version = 'local' }) {
     setEditForm({ time: '', price: '', zoneType: 'bottom' });
   };
 
-  const handleDeleteHistory = (idx) => {
+  const handleDeleteHistory = async (idx) => {
     if (!confirm('确定要删除这条记录吗？')) return;
 
     const originalItem = filteredHistory[idx];
+
+    // Cloudflare版本：使用API删除
+    if (version === 'cloudflare' && dataService.deleteWatchlistItem) {
+      try {
+        // 使用数据库ID删除（如果存在）
+        if (originalItem.id) {
+          await dataService.deleteWatchlistItem(originalItem.id);
+          await loadHistory();
+          alert('删除成功');
+        } else {
+          alert('无法删除：记录缺少ID');
+        }
+      } catch (error) {
+        console.error('删除失败:', error);
+        alert('删除失败: ' + error.message);
+      }
+      return;
+    }
+
+    // 本地版本：从localStorage删除
     const historyIdx = history.findIndex(h =>
       h.symbol === originalItem.symbol &&
       h.time === originalItem.time &&
@@ -2187,7 +2279,13 @@ export default function App({ dataService, version = 'local' }) {
             {/* 控制按钮 */}
             <div className="history-controls">
               <button onClick={clearHistory}>清空</button>
-              <button onClick={exportHistory}>导出</button>
+              <button
+                onClick={exportHistory}
+                style={{ background: '#4caf50', color: 'white', fontWeight: 'bold' }}
+                title="备份观察列表到本地文件"
+              >
+                💾 导出备份
+              </button>
               <input
                 type="file"
                 accept=".json"
@@ -2195,11 +2293,20 @@ export default function App({ dataService, version = 'local' }) {
                 style={{ display: 'none' }}
                 id="import-file"
               />
-              <button onClick={() => document.getElementById('import-file').click()}>
-                导入
+              <button
+                onClick={() => document.getElementById('import-file').click()}
+                style={{ background: '#2196f3', color: 'white', fontWeight: 'bold' }}
+                title="从备份文件恢复观察列表"
+              >
+                📂 导入备份
               </button>
               <button onClick={handleClearCache}>清缓存</button>
             </div>
+            {history.length > 0 && (
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '8px', padding: '4px 8px', background: '#fff3cd', borderRadius: '3px', border: '1px solid #ffc107' }}>
+                💡 提示：数据仅保存在当前浏览器，请定期导出备份
+              </div>
+            )}
           </div>
         </div>
       </div>

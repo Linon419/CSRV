@@ -5,11 +5,17 @@ import * as cloudflareAPI from '../services/cloudflare/api';
 
 // Cloudflare版数据服务
 const cloudflareDataService = {
-  // Cloudflare API方法
+  // K线数据API
   getKlinesFromDB: cloudflareAPI.getKlinesFromDB,
   saveKlinesToDB: cloudflareAPI.saveKlinesToDB,
   clearKlineCache: cloudflareAPI.clearKlineCache,
   fetchBinanceKlines: cloudflareAPI.fetchBinanceKlines,
+
+  // 观察列表API
+  getWatchlist: cloudflareAPI.getWatchlist,
+  saveWatchlistItem: cloudflareAPI.saveWatchlistItem,
+  deleteWatchlistItem: cloudflareAPI.deleteWatchlistItem,
+  importWatchlist: cloudflareAPI.importWatchlist,
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(
