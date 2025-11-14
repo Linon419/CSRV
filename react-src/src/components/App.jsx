@@ -483,7 +483,31 @@ export default function App({ dataService, version = 'local' }) {
   useEffect(() => {
     const startPos = Math.max(20, targetIndex - 20);
     if (fullData.length > 0 && playbackPosition >= startPos) {
-      renderChartData(fullData.slice(0, playbackPosition), true);
+      // 如果是第一次（刚开始回放），用 setData 初始化
+      if (playbackPosition === startPos) {
+        renderChartData(fullData.slice(0, playbackPosition), true);
+      } else {
+        // 后续回放：只添加新的一根K线，使用 update 方法
+        const newData = fullData[playbackPosition - 1];
+        if (newData && seriesRef.current.candle) {
+          const newCandle = {
+            time: Math.floor(newData.time / 1000),
+            open: newData.open,
+            high: newData.high,
+            low: newData.low,
+            close: newData.close
+          };
+          const newVolume = {
+            time: newCandle.time,
+            value: newData.volume,
+            color: newCandle.close >= newCandle.open ? 'rgba(76,175,80,0.5)' : 'rgba(255,82,82,0.5)'
+          };
+
+          // 使用 update 方法添加新K线，不会触发视图范围变化
+          seriesRef.current.candle.update(newCandle);
+          seriesRef.current.volume.update(newVolume);
+        }
+      }
     }
   }, [playbackPosition, fullData, targetIndex]);
 
