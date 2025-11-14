@@ -56,16 +56,24 @@ export async function saveKlinesToDB(symbol, interval, klines) {
 export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000) {
   const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
 
-  const response = await fetch(url);
+  try {
+    const response = await fetch(url);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Binance API错误:', response.status, errorText);
-    throw new Error(`币安API请求失败: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Binance API错误:', response.status, errorText);
+      throw new Error(`币安API请求失败: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    // CORS错误通常意味着交易对不存在或参数错误
+    if (error.message.includes('Failed to fetch') || error.message.includes('CORS')) {
+      throw new Error(`请求失败，请检查：\n1. 交易对是否正确（如: BTCUSDT, ETHUSDT）\n2. 网络连接是否正常\n\n交易对: ${symbol}`);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-  return data;
 }
 
 /**
