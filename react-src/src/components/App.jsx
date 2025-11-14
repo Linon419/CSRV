@@ -201,7 +201,16 @@ export default function App({ dataService, version = 'local' }) {
       },
       timeScale: {
         timeVisible: true,
-        secondsVisible: false
+        secondsVisible: false,
+        // 自定义X轴刻度标签格式化
+        tickMarkFormatter: (time) => {
+          const date = new Date(time * 1000);
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          return `${month}-${day} ${hours}:${minutes}`;
+        }
       },
       localization: {
         timeFormatter: (timestamp) => {
@@ -347,7 +356,16 @@ export default function App({ dataService, version = 'local' }) {
         timeScale: {
           timeVisible: true,
           secondsVisible: false,
-          visible: true
+          visible: true,
+          // 自定义X轴刻度标签格式化
+          tickMarkFormatter: (time) => {
+            const date = new Date(time * 1000);
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const hours = String(date.getUTCHours()).padStart(2, '0');
+            const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+            return `${month}-${day} ${hours}:${minutes}`;
+          }
         },
         localization: {
           timeFormatter: (timestamp) => {
