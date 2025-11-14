@@ -33,7 +33,7 @@ export default function App({ dataService, version = 'local' }) {
   const [interval, setInterval] = useState('3m');
   const [price, setPrice] = useState('');
   const [zoneType, setZoneType] = useState('bottom');
-  const [marketType, setMarketType] = useState('spot'); // 'spot' 或 'futures'
+  const marketType = 'futures'; // 固定使用合约市场
   const [loading, setLoading] = useState(false);
 
   // 技术指标设置
@@ -885,7 +885,7 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
 
-    const record = { symbol, time, interval, price, zoneType, marketType };
+    const record = { symbol, time, interval, price, zoneType };
     const newHistory = [record, ...history];
     localStorage.setItem('searchHistory', JSON.stringify(newHistory));
     setHistory(newHistory);
@@ -977,7 +977,6 @@ export default function App({ dataService, version = 'local' }) {
     setTime(item.time);
     setPrice(item.price);
     setZoneType(item.zoneType);
-    setMarketType(item.marketType || 'spot'); // 兼容旧数据，默认为现货
 
     // 直接使用item的值加载数据
     if (!item.symbol || !item.time || !item.price) return;
@@ -1004,7 +1003,7 @@ export default function App({ dataService, version = 'local' }) {
         for (let i = 0; i < batches; i++) {
           const batchStart = dayStart + i * batchSize * ms;
           const batchEnd = Math.min(dayStart + (i + 1) * batchSize * ms, nextDayEnd);
-          promises.push(dataService.fetchBinanceKlines(item.symbol, item.interval, batchStart, batchEnd, batchSize, item.marketType || 'spot'));
+          promises.push(dataService.fetchBinanceKlines(item.symbol, item.interval, batchStart, batchEnd, batchSize, 'futures'));
         }
 
         const results = await Promise.all(promises);
@@ -1477,13 +1476,6 @@ export default function App({ dataService, version = 'local' }) {
                 <option value="top">探顶区 📉</option>
               </select>
             </div>
-            <div className="input-group">
-              <label>市场类型</label>
-              <select value={marketType} onChange={e => setMarketType(e.target.value)}>
-                <option value="spot">现货 💵</option>
-                <option value="futures">合约 📊</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -1912,7 +1904,7 @@ export default function App({ dataService, version = 'local' }) {
                     <div onClick={() => handleHistoryClick(item)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                         <div style={{ fontWeight: 'bold' }}>
-                          {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'} ({item.marketType === 'futures' ? '合约' : '现货'})
+                          {item.symbol} - {item.zoneType === 'bottom' ? '兜底区' : '探顶区'}
                         </div>
                         <div style={{ display: 'flex', gap: '2px' }}>
                           <button
@@ -2200,8 +2192,7 @@ export default function App({ dataService, version = 'local' }) {
         {version === 'local' ? 'K线数据会自动缓存到浏览器IndexedDB。' : 'K线数据会自动缓存到Cloudflare D1数据库。'}
       </div>
       <div className="hint">
-        数据来源：币安（Binance）公共API
-        {version === 'local' ? '，本地版本无需服务器。' : '（通过Cloudflare Workers代理）。'}
+        数据来源：币安合约市场（Binance Futures）公共API，直接从浏览器调用。
       </div>
     </div>
   );
