@@ -140,6 +140,16 @@ export default function App({ dataService, version = 'local' }) {
         timeVisible: true,
         secondsVisible: false
       },
+      localization: {
+        timeFormatter: (timestamp) => {
+          const date = new Date(timestamp * 1000);
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${month}-${day} ${hours}:${minutes}`;
+        }
+      },
       width: chartContainerRef.current.clientWidth,
       height: 600
     });
@@ -210,6 +220,16 @@ export default function App({ dataService, version = 'local' }) {
           timeVisible: true,
           secondsVisible: false,
           visible: true
+        },
+        localization: {
+          timeFormatter: (timestamp) => {
+            const date = new Date(timestamp * 1000);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${month}-${day} ${hours}:${minutes}`;
+          }
         },
         rightPriceScale: {
           scaleMargins: { top: 0.1, bottom: 0.1 }
@@ -710,7 +730,9 @@ export default function App({ dataService, version = 'local' }) {
     addPriceLine(parseFloat(targetPrice));
 
     // 定位到目标时间
-    const targetTimestamp = Math.floor(new Date(targetTime).getTime() / 1000);
+    const targetDate = new Date(targetTime);
+    const targetTimestamp = Math.floor(targetDate.getTime() / 1000);
+
     let nearest = null;
     let minDiff = Infinity;
     for (const c of candles) {
