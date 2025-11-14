@@ -546,21 +546,24 @@ export default function App({ dataService, version = 'local' }) {
     if (isPlaybackMode) {
       // 回放模式：视图范围跟随当前播放位置
       // 固定显示150根K线的窗口，以当前位置为右边界
-      if (candles.length > 0 && fullData.length > 0) {
-        const currentPos = candles.length - 1; // 当前最后一根K线的索引
+      if (candles.length > 0) {
+        const currentPos = candles.length - 1; // 当前最后一根K线的索引（在data数组中）
         const windowSize = 150; // 视图窗口大小
 
         // 计算视图范围：以当前位置为中心偏右，显示150根K线
         let viewStart = Math.max(0, currentPos - 100); // 当前位置前100根
-        let viewEnd = Math.min(fullData.length - 1, viewStart + windowSize - 1); // 窗口右边界
+        let viewEnd = Math.min(candles.length - 1, viewStart + windowSize - 1); // 窗口右边界
 
         // 如果右边界不够，调整左边界
         if (viewEnd - viewStart < windowSize - 1) {
           viewStart = Math.max(0, viewEnd - windowSize + 1);
         }
 
-        const from = Math.floor(fullData[viewStart].time / 1000);
-        const to = Math.floor(fullData[viewEnd].time / 1000);
+        // 使用当前数据的时间范围（candles），而不是fullData
+        const from = candles[viewStart].time;
+        const to = candles[viewEnd].time;
+
+        console.log('设置视图范围:', { currentPos, viewStart, viewEnd, from, to, candlesLength: candles.length });
         chartRef.current.timeScale().setVisibleRange({ from, to });
       }
     } else {
