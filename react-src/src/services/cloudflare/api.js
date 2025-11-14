@@ -51,15 +51,17 @@ export async function saveKlinesToDB(symbol, interval, klines) {
 }
 
 /**
- * 通过代理请求币安API
+ * 直接请求币安API（币安支持CORS，无需代理）
  */
 export async function fetchBinanceKlines(symbol, interval, startTime, endTime, limit = 1000) {
-  const url = `${API_BASE}/binance-proxy?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
+  const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=${limit}`;
 
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`代理请求失败: ${response.status}`);
+    const errorText = await response.text();
+    console.error('Binance API错误:', response.status, errorText);
+    throw new Error(`币安API请求失败: ${response.status}`);
   }
 
   const data = await response.json();
