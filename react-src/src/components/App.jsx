@@ -859,6 +859,15 @@ export default function App({ dataService, version = 'local' }) {
     });
   };
 
+  // ========== 交易对自动补全 ==========
+  const handleSymbolBlur = () => {
+    if (symbol && !symbol.toUpperCase().endsWith('USDT')) {
+      setSymbol(symbol.toUpperCase() + 'USDT');
+    } else if (symbol) {
+      setSymbol(symbol.toUpperCase());
+    }
+  };
+
   // ========== 历史记录管理 ==========
   const loadHistory = () => {
     const saved = localStorage.getItem('searchHistory');
@@ -1422,7 +1431,8 @@ export default function App({ dataService, version = 'local' }) {
               <input
                 value={symbol}
                 onChange={e => setSymbol(e.target.value)}
-                placeholder="如: BTCUSDT"
+                onBlur={handleSymbolBlur}
+                placeholder="如: BTC 或 BTCUSDT"
               />
             </div>
             <div className="input-group">
