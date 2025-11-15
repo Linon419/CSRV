@@ -7,19 +7,21 @@
  */
 export function createPositionState() {
   return {
-    currentPosition: null, // { type: 'long'|'short', entries: [], avgPrice, quantity, stopLoss, takeProfit }
+    currentPosition: null, // { type: 'long'|'short', entries: [], avgPrice, quantity, stopLoss, takeProfit, leverage }
     closedTrades: [], // 已平仓的交易记录
     positionLine: null, // 持仓价格线引用
     stopLossLine: null, // 止损线引用
     takeProfitLine: null, // 止盈线引用
+    leverage: 1, // 当前杠杆倍数（1-125）
   };
 }
 
 /**
  * 开仓或加仓
  */
-export function openPosition(state, type, price, time, quantity = 1) {
+export function openPosition(state, type, price, time, quantity = 1, leverage = null, symbol = null) {
   const newState = { ...state };
+  const useLeverage = leverage !== null ? leverage : state.leverage;
 
   if (!newState.currentPosition) {
     // 新开仓
@@ -30,7 +32,9 @@ export function openPosition(state, type, price, time, quantity = 1) {
       quantity,
       stopLoss: null,
       takeProfit: null,
-      openTime: time
+      openTime: time,
+      leverage: useLeverage,
+      symbol: symbol
     };
   } else if (newState.currentPosition.type === type) {
     // 加仓（同方向）
@@ -68,9 +72,12 @@ export function reducePosition(state, price, time, quantity) {
   // 部分平仓
   const closeValue = quantity * price;
   const costValue = quantity * pos.avgPrice;
-  const pnl = pos.type === 'long'
+  const basePnl = pos.type === 'long'
     ? closeValue - costValue
     : costValue - closeValue;
+
+  // 应用杠杆效果
+  const pnl = basePnl * (pos.leverage || 1);
 
   // 记录部分平仓
   newState.closedTrades.push({
@@ -79,6 +86,8 @@ export function reducePosition(state, price, time, quantity) {
     closePrice: price,
     quantity,
     pnl,
+    leverage: pos.leverage || 1,
+    symbol: pos.symbol || 'UNKNOWN',
     openTime: pos.openTime,
     closeTime: time,
     partial: true
@@ -88,6 +97,42 @@ export function reducePosition(state, price, time, quantity) {
   pos.quantity -= quantity;
 
   return newState;
+}
+
+/**
+ * 按百分比减仓
+ */
+export function reducePositionByPercent(state, price, time, percent) {
+  if (!state.currentPosition) {
+    throw new Error('当前无持仓');
+  }
+
+  if (percent <= 0 || percent > 100) {
+    throw new Error('百分比必须在0-100之间');
+  }
+
+  const quantity = state.currentPosition.quantity * (percent / 100);
+  return reducePosition(state, price, time, quantity);
+}
+
+/**
+ * 按百分比加仓
+ */
+export function addPositionByPercent(state, type, price, time, percent, symbol = null) {
+  if (!state.currentPosition) {
+    throw new Error('当前无持仓，无法按百分比加仓');
+  }
+
+  if (percent <= 0) {
+    throw new Error('加仓百分比必须大于0');
+  }
+
+  // 按当前持仓价值的百分比计算加仓数量
+  const currentValue = state.currentPosition.quantity * state.currentPosition.avgPrice;
+  const addValue = currentValue * (percent / 100);
+  const quantity = addValue / price;
+
+  return openPosition(state, type, price, time, quantity, null, symbol);
 }
 
 /**
@@ -103,9 +148,12 @@ export function closePosition(state, price, time) {
 
   const closeValue = pos.quantity * price;
   const costValue = pos.quantity * pos.avgPrice;
-  const pnl = pos.type === 'long'
+  const basePnl = pos.type === 'long'
     ? closeValue - costValue
     : costValue - closeValue;
+
+  // 应用杠杆效果
+  const pnl = basePnl * (pos.leverage || 1);
 
   // 记录平仓交易
   newState.closedTrades.push({
@@ -114,6 +162,8 @@ export function closePosition(state, price, time) {
     closePrice: price,
     quantity: pos.quantity,
     pnl,
+    leverage: pos.leverage || 1,
+    symbol: pos.symbol || 'UNKNOWN',
     openTime: pos.openTime,
     closeTime: time,
     partial: false,
@@ -122,6 +172,25 @@ export function closePosition(state, price, time) {
 
   // 清空当前持仓
   newState.currentPosition = null;
+
+  return newState;
+}
+
+/**
+ * 设置杠杆
+ */
+export function setLeverage(state, leverage) {
+  if (leverage < 1 || leverage > 125) {
+    throw new Error('杠杆倍数必须在1-125之间');
+  }
+
+  const newState = { ...state };
+  newState.leverage = leverage;
+
+  // 如果已有持仓，更新持仓的杠杆
+  if (newState.currentPosition) {
+    newState.currentPosition.leverage = leverage;
+  }
 
   return newState;
 }
@@ -160,9 +229,13 @@ export function calculateUnrealizedPnL(position, currentPrice) {
 
   const currentValue = position.quantity * currentPrice;
   const costValue = position.quantity * position.avgPrice;
-  const pnl = position.type === 'long'
+  const basePnl = position.type === 'long'
     ? currentValue - costValue
     : costValue - currentValue;
+
+  // 应用杠杆效果
+  const leverage = position.leverage || 1;
+  const pnl = basePnl * leverage;
   const pnlPercent = (pnl / costValue) * 100;
 
   return { pnl, pnlPercent };

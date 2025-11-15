@@ -14,6 +14,9 @@ import {
   closePosition,
   setStopLoss,
   setTakeProfit,
+  setLeverage,
+  reducePositionByPercent,
+  addPositionByPercent,
   calculateUnrealizedPnL,
   calculateTotalStats,
   createPositionLineConfig,
@@ -89,6 +92,8 @@ export default function App({ dataService, version = 'local' }) {
   const [stopLossInput, setStopLossInput] = useState('');
   const [takeProfitInput, setTakeProfitInput] = useState('');
   const [quantityInput, setQuantityInput] = useState(1);
+  const [usePercent, setUsePercent] = useState(false); // 是否使用百分比模式
+  const [percentInput, setPercentInput] = useState(25); // 百分比输入（默认25%）
 
   // 历史记录
   const [history, setHistory] = useState([]);
@@ -100,6 +105,7 @@ export default function App({ dataService, version = 'local' }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [editForm, setEditForm] = useState({ time: '', price: '', zoneType: 'bottom' });
+  const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(null); // 选中的历史记录索引
 
   // 图表引用
   const chartContainerRef = useRef(null);
@@ -1300,7 +1306,10 @@ export default function App({ dataService, version = 'local' }) {
     event.target.value = ''; // 重置文件输入
   };
 
-  const handleHistoryClick = async (item) => {
+  const handleHistoryClick = async (item, index) => {
+    // 设置选中的历史记录索引
+    setSelectedHistoryIndex(index);
+
     // 先设置状态
     setSymbol(item.symbol);
     setInterval(item.interval);
@@ -1552,7 +1561,7 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const newState = openPosition(positionState, 'long', selectedPoint.price, selectedPoint.time, quantityInput);
+      const newState = openPosition(positionState, 'long', selectedPoint.price, selectedPoint.time, quantityInput, null, symbol);
       setPositionState(newState);
       updatePositionLines(newState);
 
@@ -1577,7 +1586,7 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const newState = openPosition(positionState, 'short', selectedPoint.price, selectedPoint.time, quantityInput);
+      const newState = openPosition(positionState, 'short', selectedPoint.price, selectedPoint.time, quantityInput, null, symbol);
       setPositionState(newState);
       updatePositionLines(newState);
 
@@ -1606,7 +1615,14 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const newState = openPosition(positionState, positionState.currentPosition.type, selectedPoint.price, selectedPoint.time, quantityInput);
+      let newState;
+      if (usePercent) {
+        // 按百分比加仓
+        newState = addPositionByPercent(positionState, positionState.currentPosition.type, selectedPoint.price, selectedPoint.time, percentInput, symbol);
+      } else {
+        // 按数量加仓
+        newState = openPosition(positionState, positionState.currentPosition.type, selectedPoint.price, selectedPoint.time, quantityInput, null, symbol);
+      }
       setPositionState(newState);
       updatePositionLines(newState);
 
@@ -1616,7 +1632,7 @@ export default function App({ dataService, version = 'local' }) {
         position: positionState.currentPosition.type === 'long' ? 'belowBar' : 'aboveBar',
         color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350',
         shape: 'circle',
-        text: 'Add',
+        text: usePercent ? `+${percentInput}%` : 'Add',
         size: 1
       }];
       seriesRef.current.candle.setMarkers(markersRef.current);
@@ -1631,17 +1647,24 @@ export default function App({ dataService, version = 'local' }) {
       return;
     }
     try {
-      const newState = reducePosition(positionState, selectedPoint.price, selectedPoint.time, quantityInput);
+      let newState;
+      if (usePercent) {
+        // 按百分比减仓
+        newState = reducePositionByPercent(positionState, selectedPoint.price, selectedPoint.time, percentInput);
+      } else {
+        // 按数量减仓
+        newState = reducePosition(positionState, selectedPoint.price, selectedPoint.time, quantityInput);
+      }
       setPositionState(newState);
       updatePositionLines(newState);
 
       // 添加图表标记
       markersRef.current = [...markersRef.current, {
         time: timeToLocal(Math.floor(selectedPoint.time / 1000)),
-        position: positionState.currentPosition.type === 'long' ? 'aboveBar' : 'belowBar',
+        position: positionState.currentPosition ? (positionState.currentPosition.type === 'long' ? 'aboveBar' : 'belowBar') : 'aboveBar',
         color: '#ff9800',
         shape: 'circle',
-        text: 'Reduce',
+        text: usePercent ? `-${percentInput}%` : 'Reduce',
         size: 1
       }];
       seriesRef.current.candle.setMarkers(markersRef.current);
@@ -1697,6 +1720,16 @@ export default function App({ dataService, version = 'local' }) {
     }
     try {
       const newState = setTakeProfit(positionState, parseFloat(takeProfitInput));
+      setPositionState(newState);
+      updatePositionLines(newState);
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  const handleLeverageChange = (newLeverage) => {
+    try {
+      const newState = setLeverage(positionState, newLeverage);
       setPositionState(newState);
       updatePositionLines(newState);
     } catch (error) {
@@ -2226,10 +2259,12 @@ export default function App({ dataService, version = 'local' }) {
                 return (
                   <div
                     key={idx}
-                    className={`history-item ${item.zoneType}-zone`}
+                    className={`history-item ${item.zoneType}-zone ${selectedHistoryIndex === idx ? 'selected' : ''}`}
                     style={{
                       cursor: editingIndex === idx ? 'default' : 'pointer',
-                      backgroundColor: backgroundColor
+                      backgroundColor: selectedHistoryIndex === idx ? 'rgba(38, 166, 154, 0.15)' : backgroundColor,
+                      borderLeft: selectedHistoryIndex === idx ? '4px solid #26a69a' : undefined,
+                      paddingLeft: selectedHistoryIndex === idx ? '8px' : undefined
                     }}
                   >
                   {editingIndex === idx ? (
@@ -2291,9 +2326,12 @@ export default function App({ dataService, version = 'local' }) {
                     </div>
                   ) : (
                     // 显示模式
-                    <div onClick={() => handleHistoryClick(item)}>
+                    <div onClick={() => handleHistoryClick(item, idx)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
                         <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {selectedHistoryIndex === idx && (
+                            <span style={{ color: '#26a69a', fontSize: '14px' }}>✓</span>
+                          )}
                           <span>{item.symbol} - {(item.zoneType === 'bottom' || !item.zoneType) ? '兜底区' : '探顶区'}</span>
                           {isDuplicate && (
                             <span style={{
@@ -2418,6 +2456,46 @@ export default function App({ dataService, version = 'local' }) {
                   />
                 </label>
               </div>
+
+              {/* 杠杆调节器 */}
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '14px' }}>杠杆:</label>
+                  <span style={{
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    color: positionState.leverage > 10 ? '#ef5350' : '#26a69a',
+                    minWidth: '40px'
+                  }}>
+                    {positionState.leverage}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="125"
+                  value={positionState.leverage}
+                  onChange={(e) => handleLeverageChange(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                  className="leverage-slider"
+                  disabled={!!positionState.currentPosition}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#666' }}>
+                  <span>1x</span>
+                  <span>25x</span>
+                  <span>50x</span>
+                  <span>75x</span>
+                  <span>100x</span>
+                  <span>125x</span>
+                </div>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                  保证金: {(quantityInput / positionState.leverage).toFixed(2)} USDT
+                  {positionState.leverage > 10 && (
+                    <span style={{ color: '#ef5350', marginLeft: '10px' }}>⚠ 高杠杆风险</span>
+                  )}
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                 <button
                   className="trade-btn long-btn"
@@ -2439,11 +2517,17 @@ export default function App({ dataService, version = 'local' }) {
             {/* 当前持仓 */}
             {positionState.currentPosition && (
               <div className="position-info">
-                <h4>当前持仓</h4>
+                <h4>当前持仓 - {positionState.currentPosition.symbol || symbol}</h4>
                 <div className="stat-item">
                   <span>类型:</span>
                   <strong style={{ color: positionState.currentPosition.type === 'long' ? '#26a69a' : '#ef5350' }}>
                     {positionState.currentPosition.type === 'long' ? 'Long (多仓)' : 'Short (空仓)'}
+                  </strong>
+                </div>
+                <div className="stat-item">
+                  <span>杠杆:</span>
+                  <strong style={{ color: positionState.currentPosition.leverage > 10 ? '#ef5350' : '#26a69a' }}>
+                    {positionState.currentPosition.leverage}x
                   </strong>
                 </div>
                 <div className="stat-item">
@@ -2461,7 +2545,72 @@ export default function App({ dataService, version = 'local' }) {
                   </strong>
                 </div>
 
-                {/* 加仓/减仓 */}
+                {/* 加仓/减仓模式选择 */}
+                <div style={{ marginTop: '10px', marginBottom: '10px', padding: '10px', background: '#f5f5f5', borderRadius: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        checked={!usePercent}
+                        onChange={() => setUsePercent(false)}
+                        style={{ marginRight: '5px' }}
+                      />
+                      按价值
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        checked={usePercent}
+                        onChange={() => setUsePercent(true)}
+                        style={{ marginRight: '5px' }}
+                      />
+                      按百分比
+                    </label>
+                  </div>
+
+                  {usePercent ? (
+                    <div>
+                      <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                        {[25, 50, 75, 100].map(percent => (
+                          <button
+                            key={percent}
+                            onClick={() => setPercentInput(percent)}
+                            className={percentInput === percent ? 'percent-btn active' : 'percent-btn'}
+                            style={{
+                              flex: 1,
+                              padding: '5px',
+                              border: percentInput === percent ? '2px solid #26a69a' : '1px solid #ccc',
+                              background: percentInput === percent ? '#e8f5f3' : 'white',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '13px',
+                              fontWeight: percentInput === percent ? 'bold' : 'normal'
+                            }}
+                          >
+                            {percent}%
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={percentInput}
+                        onChange={(e) => setPercentInput(parseInt(e.target.value))}
+                        style={{ width: '100%', marginTop: '5px' }}
+                      />
+                      <div style={{ fontSize: '12px', color: '#666', textAlign: 'center' }}>
+                        {percentInput}% = {((positionState.currentPosition.quantity * positionState.currentPosition.avgPrice) * percentInput / 100).toFixed(2)} USDT
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      当前输入: {quantityInput} USDT
+                    </div>
+                  )}
+                </div>
+
+                {/* 加仓/减仓按钮 */}
                 <div style={{ marginTop: '10px', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
@@ -2469,14 +2618,14 @@ export default function App({ dataService, version = 'local' }) {
                       onClick={handleAddPosition}
                       style={{ background: '#4caf50' }}
                     >
-                      加仓 Add
+                      {usePercent ? `加仓 +${percentInput}%` : '加仓 Add'}
                     </button>
                     <button
                       className="trade-btn"
                       onClick={handleReducePosition}
                       style={{ background: '#ff9800' }}
                     >
-                      减仓 Reduce
+                      {usePercent ? `减仓 -${percentInput}%` : '减仓 Reduce'}
                     </button>
                     <button
                       className="trade-btn close-btn"
@@ -2586,7 +2735,7 @@ export default function App({ dataService, version = 'local' }) {
                       }}
                     >
                       <div style={{ fontWeight: 'bold' }}>
-                        {trade.type === 'long' ? 'Long' : 'Short'} |
+                        {trade.symbol || 'UNKNOWN'} | {trade.type === 'long' ? 'Long' : 'Short'} {trade.leverage ? `${trade.leverage}x` : '1x'} |
                         {trade.partial ? ' 部分平仓' : ' 完全平仓'}
                       </div>
                       <div>开仓: {formatPrice(trade.entryPrice)} | 平仓: {formatPrice(trade.closePrice)}</div>
