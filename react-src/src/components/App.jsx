@@ -327,17 +327,42 @@ export default function App({ dataService, version = 'local' }) {
     // 图表点击事件
     chart.subscribeClick((param) => {
       if (!param.point || !param.time) return;
-      const priceData = param.seriesPrices.get(candleSeries);
-      if (!priceData) return;
 
-      const price = typeof priceData === 'object' ? priceData.close : priceData;
+      // 只从K线系列获取价格数据，忽略均线等其他系列
+      const candleData = param.seriesPrices.get(candleSeries);
+      if (!candleData) return;
+
+      // 验证K线数据的有效性
+      if (typeof candleData !== 'object' || candleData.close === undefined) {
+        return;
+      }
+
+      // 使用鼠标点击位置的Y坐标转换为价格，获得更精确的价格
+      // coordinateToPrice 将屏幕坐标转换为价格值
+      let price;
+      try {
+        const priceAtClick = candleSeries.coordinateToPrice(param.point.y);
+
+        // 确保价格在该K线的范围内 (low ~ high)
+        if (priceAtClick >= candleData.low && priceAtClick <= candleData.high) {
+          // 使用点击位置的精确价格
+          price = priceAtClick;
+        } else {
+          // 如果点击位置超出K线范围，使用收盘价
+          price = candleData.close;
+        }
+      } catch (e) {
+        // 如果坐标转换失败，使用收盘价
+        price = candleData.close;
+      }
+
       setSelectedPoint({
         time: param.time * 1000,
         price: price
       });
       setCurrentPrice(price);
 
-      console.log(`Selected: ${new Date(param.time * 1000).toLocaleString()}, Price: ${price}`);
+      console.log(`Selected: ${new Date(param.time * 1000).toLocaleString()}, Price: ${price.toFixed(2)} (candlestick range: ${candleData.low.toFixed(2)} - ${candleData.high.toFixed(2)})`);
     });
 
     // 保存引用
