@@ -477,9 +477,17 @@ export default function App({ dataService, version = 'local' }) {
 
     try {
       const targetDate = new Date(time);
-      // 设置时间范围：发布时间前24小时到后48小时
-      const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
-      const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
+      // 根据时间间隔调整时间范围，避免数据量过大
+      let beforeHours, afterHours;
+      if (interval === '1m') {
+        beforeHours = 6; afterHours = 12;  // 1min: 18小时 (1080根K线)
+      } else if (interval === '3m') {
+        beforeHours = 8; afterHours = 16;  // 3min: 24小时 (480根K线)
+      } else {
+        beforeHours = 24; afterHours = 48; // 其他: 72小时
+      }
+      const dayStart = targetDate.getTime() - beforeHours * 60 * 60 * 1000;
+      const nextDayEnd = targetDate.getTime() + afterHours * 60 * 60 * 1000;
 
       const ms = intervalToMs[interval] || 3600000;
       const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
@@ -551,9 +559,17 @@ export default function App({ dataService, version = 'local' }) {
 
       try {
         const targetDate = new Date(time);
-        // 设置时间范围：发布时间前24小时到后48小时
-        const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
-        const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
+        // 根据时间间隔调整时间范围，避免数据量过大
+        let beforeHours, afterHours;
+        if (newInterval === '1m') {
+          beforeHours = 6; afterHours = 12;  // 1min: 18小时 (1080根K线)
+        } else if (newInterval === '3m') {
+          beforeHours = 8; afterHours = 16;  // 3min: 24小时 (480根K线)
+        } else {
+          beforeHours = 24; afterHours = 48; // 其他: 72小时
+        }
+        const dayStart = targetDate.getTime() - beforeHours * 60 * 60 * 1000;
+        const nextDayEnd = targetDate.getTime() + afterHours * 60 * 60 * 1000;
 
         const ms = intervalToMs[newInterval] || 3600000;
         const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
@@ -1351,9 +1367,17 @@ export default function App({ dataService, version = 'local' }) {
     setLoading(true);
     try {
       const targetDate = new Date(item.time);
-      // 设置时间范围：发布时间前24小时到后48小时
-      const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
-      const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
+      // 根据时间间隔调整时间范围，避免数据量过大
+      let beforeHours, afterHours;
+      if (item.interval === '1m') {
+        beforeHours = 6; afterHours = 12;  // 1min: 18小时 (1080根K线)
+      } else if (item.interval === '3m') {
+        beforeHours = 8; afterHours = 16;  // 3min: 24小时 (480根K线)
+      } else {
+        beforeHours = 24; afterHours = 48; // 其他: 72小时
+      }
+      const dayStart = targetDate.getTime() - beforeHours * 60 * 60 * 1000;
+      const nextDayEnd = targetDate.getTime() + afterHours * 60 * 60 * 1000;
 
       const ms = intervalToMs[item.interval] || 3600000;
       const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
