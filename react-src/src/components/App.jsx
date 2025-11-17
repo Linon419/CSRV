@@ -477,8 +477,9 @@ export default function App({ dataService, version = 'local' }) {
 
     try {
       const targetDate = new Date(time);
-      const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
-      const nextDayEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 2).getTime() - 1;
+      // 设置时间范围：发布时间前24小时到后48小时
+      const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
+      const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
 
       const ms = intervalToMs[interval] || 3600000;
       const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
@@ -550,8 +551,9 @@ export default function App({ dataService, version = 'local' }) {
 
       try {
         const targetDate = new Date(time);
-        const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
-        const nextDayEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 2).getTime() - 1;
+        // 设置时间范围：发布时间前24小时到后48小时
+        const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
+        const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
 
         const ms = intervalToMs[newInterval] || 3600000;
         const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
@@ -1349,8 +1351,9 @@ export default function App({ dataService, version = 'local' }) {
     setLoading(true);
     try {
       const targetDate = new Date(item.time);
-      const dayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
-      const nextDayEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 2).getTime() - 1;
+      // 设置时间范围：发布时间前24小时到后48小时
+      const dayStart = targetDate.getTime() - 24 * 60 * 60 * 1000;
+      const nextDayEnd = targetDate.getTime() + 48 * 60 * 60 * 1000;
 
       const ms = intervalToMs[item.interval] || 3600000;
       const totalCandles = Math.ceil((nextDayEnd - dayStart) / ms);
