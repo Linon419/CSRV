@@ -107,6 +107,21 @@ export default function App({ dataService, version = 'local' }) {
   const [editForm, setEditForm] = useState({ time: '', price: '', zoneType: 'bottom' });
   const [selectedHistoryIndex, setSelectedHistoryIndex] = useState(null); // 选中的历史记录索引
 
+  // 管理员登录状态（仅Cloudflare版本使用）
+  const [isAdmin, setIsAdmin] = useState(() => {
+    if (version === 'cloudflare') {
+      return localStorage.getItem('isAdmin') === 'true';
+    }
+    return false;
+  });
+  const [adminPassword, setAdminPassword] = useState(() => {
+    if (version === 'cloudflare') {
+      return localStorage.getItem('adminPassword') || '';
+    }
+    return '';
+  });
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+
   // 图表引用
   const chartContainerRef = useRef(null);
   const macdContainerRef = useRef(null);
@@ -1096,28 +1111,85 @@ export default function App({ dataService, version = 'local' }) {
     }
   };
 
-  // ========== 历史记录管理 ==========
-  const loadHistory = async () => {
-    // Cloudflare版本：从API加载
-    if (version === 'cloudflare' && dataService.getWatchlist) {
-      try {
-        const watchlist = await dataService.getWatchlist();
-        setHistory(watchlist);
-        setFilteredHistory(watchlist);
-        console.log(`从云端加载了 ${watchlist.length} 条观察记录`);
-      } catch (error) {
-        console.error('加载观察列表失败:', error);
-        alert('加载观察列表失败，请检查网络连接');
-      }
-      return;
+  // ========== 管理员登录管理 ==========
+  const handleAdminLogin = async (password) => {
+    if (!password) {
+      alert('请输入密码');
+      return false;
     }
 
-    // 本地版本：从localStorage加载
+    try {
+      const response = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsAdmin(true);
+        setAdminPassword(password);
+        localStorage.setItem('isAdmin', 'true');
+        localStorage.setItem('adminPassword', password);
+        setShowLoginDialog(false);
+        alert('登录成功！现在可以操作云端数据库了');
+        // 重新加载数据（切换到数据库数据）
+        await loadHistory();
+        return true;
+      } else {
+        alert(result.error || '登录失败');
+        return false;
+      }
+    } catch (error) {
+      console.error('登录失败:', error);
+      alert('登录失败: ' + error.message);
+      return false;
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    setAdminPassword('');
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('adminPassword');
+    alert('已退出管理员登录');
+    // 重新加载数据（切换到本地数据）
+    loadHistory();
+  };
+
+  // ========== 历史记录管理 ==========
+  const loadHistory = async () => {
+    // Cloudflare版本：根据管理员状态选择数据源
+    if (version === 'cloudflare' && dataService.getWatchlist) {
+      // 管理员模式：从数据库加载
+      if (isAdmin && adminPassword) {
+        try {
+          const watchlist = await dataService.getWatchlist();
+          setHistory(watchlist);
+          setFilteredHistory(watchlist);
+          console.log(`从数据库加载了 ${watchlist.length} 条观察记录`);
+        } catch (error) {
+          console.error('加载观察列表失败:', error);
+          alert('加载观察列表失败，请检查网络连接');
+        }
+        return;
+      }
+      // 游客模式：从localStorage加载（继续下面的逻辑）
+    }
+
+    // 本地版本或游客模式：从localStorage加载
     const saved = localStorage.getItem('searchHistory');
     if (saved) {
       const historyData = JSON.parse(saved);
       setHistory(historyData);
       setFilteredHistory(historyData);
+      if (version === 'cloudflare') {
+        console.log(`从浏览器本地加载了 ${historyData.length} 条观察记录（游客模式）`);
+      }
+    } else {
+      setHistory([]);
+      setFilteredHistory([]);
     }
   };
 
@@ -1185,20 +1257,27 @@ export default function App({ dataService, version = 'local' }) {
     const record = { symbol, time, interval, price, zoneType: finalZoneType };
     console.log('保存的记录对象:', record); // 调试日志
 
-    // Cloudflare版本：使用API保存
+    // Cloudflare版本：根据管理员状态选择保存位置
     if (version === 'cloudflare' && dataService.saveWatchlistItem) {
-      try {
-        const result = await dataService.saveWatchlistItem(record);
-        if (result.success) {
-          // 重新加载列表
-          await loadHistory();
-          alert(result.action === 'updated' ? '已更新观察列表中的记录' : '已保存到观察列表');
+      // 管理员模式：保存到数据库
+      if (isAdmin && adminPassword) {
+        try {
+          const result = await dataService.saveWatchlistItem(record, adminPassword);
+          if (result.success) {
+            // 重新加载列表
+            await loadHistory();
+            alert(result.action === 'updated' ? '已更新数据库中的记录' : '已保存到数据库');
+          }
+        } catch (error) {
+          console.error('保存失败:', error);
+          alert(error.message || '保存失败，请检查网络连接或管理员密码');
         }
-      } catch (error) {
-        console.error('保存失败:', error);
-        alert('保存失败，请检查网络连接');
+        return;
+      } else {
+        // 游客模式：提示需要登录才能保存到数据库，或保存到本地
+        alert('游客模式下数据仅保存在浏览器本地\n登录管理员账号可保存到云端数据库');
+        // 继续执行下面的本地保存逻辑
       }
-      return;
     }
 
     // 本地版本：使用localStorage保存
@@ -1522,22 +1601,29 @@ export default function App({ dataService, version = 'local' }) {
 
     const originalItem = filteredHistory[idx];
 
-    // Cloudflare版本：使用API删除
+    // Cloudflare版本：根据管理员状态选择删除位置
     if (version === 'cloudflare' && dataService.deleteWatchlistItem) {
-      try {
-        // 使用数据库ID删除（如果存在）
-        if (originalItem.id) {
-          await dataService.deleteWatchlistItem(originalItem.id);
-          await loadHistory();
-          alert('删除成功');
-        } else {
-          alert('无法删除：记录缺少ID');
+      // 管理员模式：从数据库删除
+      if (isAdmin && adminPassword) {
+        try {
+          // 使用数据库ID删除（如果存在）
+          if (originalItem.id) {
+            await dataService.deleteWatchlistItem(originalItem.id, adminPassword);
+            await loadHistory();
+            alert('已从数据库删除');
+          } else {
+            alert('无法删除：记录缺少ID');
+          }
+        } catch (error) {
+          console.error('删除失败:', error);
+          alert('删除失败: ' + error.message);
         }
-      } catch (error) {
-        console.error('删除失败:', error);
-        alert('删除失败: ' + error.message);
+        return;
+      } else {
+        // 游客模式：只能删除本地记录
+        alert('游客模式下只能删除浏览器本地记录\n要删除数据库记录，请登录管理员账号');
+        // 继续执行下面的本地删除逻辑
       }
-      return;
     }
 
     // 本地版本：从localStorage删除
@@ -1870,7 +1956,50 @@ export default function App({ dataService, version = 'local' }) {
       {/* 顶部标题栏 */}
       <div className="app-header">
         <h1>潜力区币回测工具</h1>
-        {version === 'local' && <span className="version-badge">本地版</span>}
+        <div>
+          {version === 'local' && <span className="version-badge">本地版</span>}
+          {version === 'cloudflare' && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+              {isAdmin ? (
+                <>
+                  <span className="version-badge" style={{ backgroundColor: '#4CAF50' }}>管理员模式</span>
+                  <button
+                    onClick={handleAdminLogout}
+                    style={{
+                      padding: '5px 15px',
+                      fontSize: '14px',
+                      backgroundColor: '#ff5252',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    退出登录
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="version-badge" style={{ backgroundColor: '#999' }}>游客模式</span>
+                  <button
+                    onClick={() => setShowLoginDialog(true)}
+                    style={{
+                      padding: '5px 15px',
+                      fontSize: '14px',
+                      backgroundColor: '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    管理员登录
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 搜索面板 */}
@@ -2824,6 +2953,93 @@ export default function App({ dataService, version = 'local' }) {
       <div className="hint">
         数据来源：币安合约市场（Binance Futures）公共API，直接从浏览器调用。
       </div>
+
+      {/* 管理员登录对话框 */}
+      {showLoginDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000
+          }}
+          onClick={() => setShowLoginDialog(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '8px',
+              minWidth: '350px',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>管理员登录</h2>
+            <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+              登录后可将观察列表保存到云端数据库，支持跨设备同步。
+            </p>
+            <input
+              type="password"
+              placeholder="请输入管理员密码"
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxSizing: 'border-box',
+                marginBottom: '20px'
+              }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleAdminLogin(e.target.value);
+                }
+              }}
+              id="admin-password-input"
+            />
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowLoginDialog(false)}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '14px',
+                  backgroundColor: '#f5f5f5',
+                  color: '#333',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  const input = document.getElementById('admin-password-input');
+                  handleAdminLogin(input.value);
+                }}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '14px',
+                  backgroundColor: '#2196F3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                登录
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

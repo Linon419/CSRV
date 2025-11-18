@@ -8,6 +8,7 @@
 
 interface Env {
   DB: D1Database;
+  ADMIN_PASSWORD?: string;
 }
 
 interface WatchlistItem {
@@ -25,8 +26,24 @@ interface WatchlistItem {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
+
+// 验证管理员权限
+function verifyAdmin(request: Request, env: Env): boolean {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader) return false;
+
+  // 从环境变量获取管理员密码，默认为 'admin123'
+  const adminPassword = env.ADMIN_PASSWORD || 'admin123';
+
+  // 支持 "Bearer password" 或直接 "password" 格式
+  const password = authHeader.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : authHeader;
+
+  return password === adminPassword;
+}
 
 // 处理 OPTIONS 预检请求
 export async function onRequestOptions() {
@@ -68,10 +85,24 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
   }
 }
 
-// POST - 保存/更新观察记录
+// POST - 保存/更新观察记录（需要管理员权限）
 export async function onRequestPost(context: { request: Request; env: Env }) {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  // 验证管理员权限
+  if (!verifyAdmin(request, env)) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: '需要管理员权限'
+    }), {
+      status: 403,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
+  }
 
   try {
     const body: WatchlistItem = await request.json();
@@ -157,10 +188,24 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
   }
 }
 
-// DELETE - 删除观察记录
+// DELETE - 删除观察记录（需要管理员权限）
 export async function onRequestDelete(context: { request: Request; env: Env }) {
   const { request, env } = context;
   const url = new URL(request.url);
+
+  // 验证管理员权限
+  if (!verifyAdmin(request, env)) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: '需要管理员权限'
+    }), {
+      status: 403,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    });
+  }
 
   try {
     const body = await request.json();

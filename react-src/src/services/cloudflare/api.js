@@ -118,13 +118,20 @@ export async function getWatchlist() {
 }
 
 /**
- * 保存观察记录（自动判断新增或更新）
+ * 保存观察记录（自动判断新增或更新，需要管理员权限）
+ * @param {object} item - 观察记录
+ * @param {string} adminPassword - 管理员密码
  */
-export async function saveWatchlistItem(item) {
+export async function saveWatchlistItem(item, adminPassword) {
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (adminPassword) {
+      headers['Authorization'] = `Bearer ${adminPassword}`;
+    }
+
     const response = await fetch(`${API_BASE}/watchlist`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         symbol: item.symbol,
         time: item.time,
@@ -135,7 +142,8 @@ export async function saveWatchlistItem(item) {
     });
 
     if (!response.ok) {
-      throw new Error(`保存失败: ${response.status}`);
+      const result = await response.json();
+      throw new Error(result.error || `保存失败: ${response.status}`);
     }
 
     const result = await response.json();
@@ -147,18 +155,26 @@ export async function saveWatchlistItem(item) {
 }
 
 /**
- * 删除观察记录
+ * 删除观察记录（需要管理员权限）
+ * @param {number} id - 记录ID
+ * @param {string} adminPassword - 管理员密码
  */
-export async function deleteWatchlistItem(id) {
+export async function deleteWatchlistItem(id, adminPassword) {
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (adminPassword) {
+      headers['Authorization'] = `Bearer ${adminPassword}`;
+    }
+
     const response = await fetch(`${API_BASE}/watchlist`, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ id })
     });
 
     if (!response.ok) {
-      throw new Error(`删除失败: ${response.status}`);
+      const result = await response.json();
+      throw new Error(result.error || `删除失败: ${response.status}`);
     }
 
     const result = await response.json();
