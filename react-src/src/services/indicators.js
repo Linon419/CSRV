@@ -149,6 +149,72 @@ export function calculateMACD(data, fastPeriod = 12, slowPeriod = 26, signalPeri
 }
 
 /**
+ * Bill Williams 分形识别
+ * 上分形：中间K线的最高价高于前后各2根K线的最高价
+ * 下分形：中间K线的最低价低于前后各2根K线的最低价
+ * @param {Array} data - K线数据 [{time, open, high, low, close, volume}]
+ * @returns {Object} {upFractals: [], downFractals: [], fractalLine: []}
+ */
+export function calculateFractals(data) {
+  if (data.length < 5) {
+    return { upFractals: [], downFractals: [], fractalLine: [] };
+  }
+
+  const upFractals = [];   // 上分形（阻力位）
+  const downFractals = []; // 下分形（支撑位）
+
+  // 从第3根K线开始，到倒数第3根结束（确保前后都有2根K线）
+  for (let i = 2; i < data.length - 2; i++) {
+    const current = data[i];
+
+    // 检查上分形
+    const isUpFractal =
+      current.high > data[i - 2].high &&
+      current.high > data[i - 1].high &&
+      current.high > data[i + 1].high &&
+      current.high > data[i + 2].high;
+
+    if (isUpFractal) {
+      upFractals.push({
+        time: current.time,
+        value: current.high,
+        type: 'up'
+      });
+    }
+
+    // 检查下分形
+    const isDownFractal =
+      current.low < data[i - 2].low &&
+      current.low < data[i - 1].low &&
+      current.low < data[i + 1].low &&
+      current.low < data[i + 2].low;
+
+    if (isDownFractal) {
+      downFractals.push({
+        time: current.time,
+        value: current.low,
+        type: 'down'
+      });
+    }
+  }
+
+  // 构建分形折线（按时间顺序交替连接上下分形）
+  const allFractals = [...upFractals, ...downFractals]
+    .sort((a, b) => a.time - b.time);
+
+  const fractalLine = allFractals.map(f => ({
+    time: f.time,
+    value: f.value
+  }));
+
+  return {
+    upFractals,      // 上分形点位（阻力）
+    downFractals,    // 下分形点位（支撑）
+    fractalLine      // 分形折线数据
+  };
+}
+
+/**
  * 时间周期转换为毫秒
  */
 export const intervalToMs = {

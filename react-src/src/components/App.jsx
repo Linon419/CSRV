@@ -5,6 +5,7 @@ import {
   exponentialMovingAverage,
   bollingerBands,
   calculateMACD,
+  calculateFractals,
   intervalToMs
 } from '../services/indicators';
 import {
@@ -69,7 +70,8 @@ export default function App({ dataService, version = 'local' }) {
     ema100: { show: true, period: 100 },
     ema200: { show: true, period: 200 },
     bb: { show: false, period: 20, stdDev: 2 },
-    macd: { show: false, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 }
+    macd: { show: false, fastPeriod: 12, slowPeriod: 26, signalPeriod: 9 },
+    fractals: { show: false, showLine: true, showMarkers: true }
   });
 
   // 面板显示状态
@@ -339,6 +341,17 @@ export default function App({ dataService, version = 'local' }) {
       priceLineVisible: false
     });
 
+    // 创建分形系列
+    const fractalLine = chart.addLineSeries({
+      color: '#9c27b0',
+      lineWidth: 2,
+      visible: false,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 5
+    });
+
     // 图表点击事件
     chart.subscribeClick((param) => {
       if (!param.point || !param.time) return;
@@ -387,7 +400,8 @@ export default function App({ dataService, version = 'local' }) {
       volume: volumeSeries,
       ma5, ma10, ma20, ma60,
       ema21, ema55, ema100, ema200,
-      bbUpper, bbMiddle, bbLower
+      bbUpper, bbMiddle, bbLower,
+      fractalLine
     };
 
     // 创建MACD图表
@@ -1072,6 +1086,53 @@ export default function App({ dataService, version = 'local' }) {
       seriesRef.current.macdSignal.applyOptions({ visible: false });
       seriesRef.current.macdHistogram.applyOptions({ visible: false });
     }
+
+    // 分形指标
+    if (indicators.fractals?.show) {
+      const fractalData = calculateFractals(candles);
+
+      // 绘制分形折线
+      if (indicators.fractals.showLine && fractalData.fractalLine.length > 0) {
+        seriesRef.current.fractalLine.setData(fractalData.fractalLine);
+        seriesRef.current.fractalLine.applyOptions({ visible: true });
+      } else {
+        seriesRef.current.fractalLine.applyOptions({ visible: false });
+      }
+
+      // 在K线图上添加分形标记
+      if (indicators.fractals.showMarkers) {
+        const markers = [];
+
+        // 上分形标记（阻力位）
+        fractalData.upFractals.forEach(f => {
+          markers.push({
+            time: f.time,
+            position: 'aboveBar',
+            color: '#f44336',
+            shape: 'arrowDown',
+            text: '▼'
+          });
+        });
+
+        // 下分形标记（支撑位）
+        fractalData.downFractals.forEach(f => {
+          markers.push({
+            time: f.time,
+            position: 'belowBar',
+            color: '#4caf50',
+            shape: 'arrowUp',
+            text: '▲'
+          });
+        });
+
+        seriesRef.current.candle.setMarkers(markers);
+      } else {
+        seriesRef.current.candle.setMarkers([]);
+      }
+    } else {
+      seriesRef.current.fractalLine.applyOptions({ visible: false });
+      seriesRef.current.candle.setMarkers([]);
+    }
   };
 
   // ========== 添加价格线 ==========
@@ -1385,6 +1446,199 @@ export default function App({ dataService, version = 'local' }) {
     a.download = `search_history_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // ========== 导出图表和分形数据 ==========
+
+  // 导出图表为PNG
+  const exportChartAsPNG = () => {
+    if (!chartRef.current) {
+      alert('请先加载图表数据');
+      return;
+    }
+
+    try {
+      // 使用 lightweight-charts 的 takeScreenshot 方法
+      const canvas = chartRef.current.takeScreenshot();
+
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${symbol}_${interval}_fractal_${new Date().toISOString().slice(0, 10)}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    } catch (error) {
+      console.error('导出PNG失败:', error);
+      alert('导出图片失败，请重试');
+    }
+  };
+
+  // 导出分形数据为CSV
+  const exportFractalAsCSV = () => {
+    const candles = fullData.slice(0, playbackPosition > 0 ? playbackPosition : fullData.length);
+    if (candles.length === 0) {
+      alert('请先加载数据');
+      return;
+    }
+
+    const fractalData = calculateFractals(candles);
+
+    // CSV 头部
+    let csv = 'Type,Time,Price,DateTime\n';
+
+    // 添加上分形（阻力位）
+    fractalData.upFractals.forEach(f => {
+      const dt = new Date(f.time * 1000).toLocaleString('zh-CN');
+      csv += `Up Fractal (阻力),${f.time},${f.value},${dt}\n`;
+    });
+
+    // 添加下分形（支撑位）
+    fractalData.downFractals.forEach(f => {
+      const dt = new Date(f.time * 1000).toLocaleString('zh-CN');
+      csv += `Down Fractal (支撑),${f.time},${f.value},${dt}\n`;
+    });
+
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${symbol}_${interval}_fractals_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 导出分形数据为JSON
+  const exportFractalAsJSON = () => {
+    const candles = fullData.slice(0, playbackPosition > 0 ? playbackPosition : fullData.length);
+    if (candles.length === 0) {
+      alert('请先加载数据');
+      return;
+    }
+
+    const fractalData = calculateFractals(candles);
+
+    const exportData = {
+      symbol,
+      interval,
+      exportTime: new Date().toISOString(),
+      klineCount: candles.length,
+      fractals: {
+        upFractals: fractalData.upFractals.map(f => ({
+          time: f.time,
+          price: f.value,
+          dateTime: new Date(f.time * 1000).toISOString(),
+          type: '阻力位'
+        })),
+        downFractals: fractalData.downFractals.map(f => ({
+          time: f.time,
+          price: f.value,
+          dateTime: new Date(f.time * 1000).toISOString(),
+          type: '支撑位'
+        })),
+        fractalLine: fractalData.fractalLine
+      },
+      klineData: candles
+    };
+
+    const data = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${symbol}_${interval}_fractal_data_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 批量导出（ZIP打包）
+  const exportAll = async () => {
+    const candles = fullData.slice(0, playbackPosition > 0 ? playbackPosition : fullData.length);
+    if (candles.length === 0) {
+      alert('请先加载数据');
+      return;
+    }
+
+    if (!window.JSZip) {
+      alert('正在加载压缩库，请稍后重试...');
+      // 动态加载 JSZip 库
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+      script.onload = () => exportAll(); // 加载完成后重新调用
+      document.head.appendChild(script);
+      return;
+    }
+
+    try {
+      const JSZip = window.JSZip;
+      const zip = new JSZip();
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const folderName = `${symbol}_${interval}_${timestamp}`;
+
+      // 1. 添加图表PNG
+      if (chartRef.current) {
+        try {
+          const canvas = chartRef.current.takeScreenshot();
+          const blob = await new Promise(resolve => canvas.toBlob(resolve));
+          zip.file(`${folderName}/chart.png`, blob);
+        } catch (e) {
+          console.warn('导出PNG失败，跳过', e);
+        }
+      }
+
+      // 2. 添加CSV
+      const fractalData = calculateFractals(candles);
+      let csv = 'Type,Time,Price,DateTime\n';
+      fractalData.upFractals.forEach(f => {
+        const dt = new Date(f.time * 1000).toLocaleString('zh-CN');
+        csv += `Up Fractal (阻力),${f.time},${f.value},${dt}\n`;
+      });
+      fractalData.downFractals.forEach(f => {
+        const dt = new Date(f.time * 1000).toLocaleString('zh-CN');
+        csv += `Down Fractal (支撑),${f.time},${f.value},${dt}\n`;
+      });
+      zip.file(`${folderName}/fractals.csv`, '\ufeff' + csv);
+
+      // 3. 添加JSON
+      const exportData = {
+        symbol,
+        interval,
+        exportTime: new Date().toISOString(),
+        klineCount: candles.length,
+        fractals: {
+          upFractals: fractalData.upFractals.map(f => ({
+            time: f.time,
+            price: f.value,
+            dateTime: new Date(f.time * 1000).toISOString(),
+            type: '阻力位'
+          })),
+          downFractals: fractalData.downFractals.map(f => ({
+            time: f.time,
+            price: f.value,
+            dateTime: new Date(f.time * 1000).toISOString(),
+            type: '支撑位'
+          })),
+          fractalLine: fractalData.fractalLine
+        },
+        klineData: candles
+      };
+      zip.file(`${folderName}/data.json`, JSON.stringify(exportData, null, 2));
+
+      // 生成ZIP并下载
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${folderName}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      alert('导出成功！');
+    } catch (error) {
+      console.error('批量导出失败:', error);
+      alert('导出失败: ' + error.message);
+    }
   };
 
   const importHistory = async (event) => {
@@ -2290,6 +2544,39 @@ export default function App({ dataService, version = 'local' }) {
             </div>
           </div>
 
+          {/* 分形指标 */}
+          <div className="indicator-group">
+            <h4>分形 (Bill Williams Fractals)</h4>
+            <div className="indicator-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.fractals?.show || false}
+                  onChange={(e) => setIndicators({ ...indicators, fractals: { ...indicators.fractals, show: e.target.checked } })}
+                />
+                显示分形
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.fractals?.showLine ?? true}
+                  disabled={!indicators.fractals?.show}
+                  onChange={(e) => setIndicators({ ...indicators, fractals: { ...indicators.fractals, showLine: e.target.checked } })}
+                />
+                显示折线
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={indicators.fractals?.showMarkers ?? true}
+                  disabled={!indicators.fractals?.show}
+                  onChange={(e) => setIndicators({ ...indicators, fractals: { ...indicators.fractals, showMarkers: e.target.checked } })}
+                />
+                显示标记 (▲支撑 ▼阻力)
+              </label>
+            </div>
+          </div>
+
           {/* 应用按钮 */}
           <div style={{ marginTop: '10px' }}>
             <button onClick={loadKlineData}>应用设置</button>
@@ -2322,6 +2609,9 @@ export default function App({ dataService, version = 'local' }) {
             <strong style={{ marginLeft: '15px' }}>MACD:</strong>
             <span><i style={{ background: '#2962FF' }}></i>MACD</span>
             <span><i style={{ background: '#FF6D00' }}></i>Signal</span>
+            <strong style={{ marginLeft: '15px' }}>分形:</strong>
+            <span><i style={{ background: '#9c27b0' }}></i>折线</span>
+            <span>▲支撑 ▼阻力</span>
           </div>
 
           {/* 时间回放控制面板 */}
@@ -2611,6 +2901,46 @@ export default function App({ dataService, version = 'local' }) {
           </div>
         </div>
       </div>
+
+      {/* 分形导出工具 */}
+      {fullData.length > 0 && indicators.fractals?.show && (
+        <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
+          <h4 style={{ margin: '0 0 10px 0' }}>📊 分形数据导出</h4>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={exportChartAsPNG}
+              style={{ background: '#9c27b0', color: 'white', padding: '8px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              title="导出当前图表为PNG图片"
+            >
+              🖼️ 导出PNG
+            </button>
+            <button
+              onClick={exportFractalAsCSV}
+              style={{ background: '#4caf50', color: 'white', padding: '8px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              title="导出分形数据为CSV表格"
+            >
+              📊 导出CSV
+            </button>
+            <button
+              onClick={exportFractalAsJSON}
+              style={{ background: '#2196f3', color: 'white', padding: '8px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              title="导出完整数据为JSON格式"
+            >
+              📋 导出JSON
+            </button>
+            <button
+              onClick={exportAll}
+              style={{ background: '#ff9800', color: 'white', padding: '8px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              title="批量导出所有格式（ZIP打包）"
+            >
+              📦 打包下载
+            </button>
+          </div>
+          <div style={{ fontSize: '11px', color: '#666', marginTop: '8px' }}>
+            💡 提示：导出内容包含{playbackPosition > 0 ? `前 ${playbackPosition} 根` : '所有'}K线的分形数据
+          </div>
+        </div>
+      )}
 
       {/* 持仓工具 */}
       <div style={{ marginTop: '20px' }}>
