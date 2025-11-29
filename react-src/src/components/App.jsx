@@ -468,23 +468,23 @@ export default function App({ dataService, version = 'local' }) {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: 'solid', color: '#131722' },
-        textColor: '#d1d4dc'
+        background: { type: 'solid', color: '#fefbe2' },
+        textColor: '#333333'
       },
       grid: {
         vertLines: {
-          color: 'rgba(42, 46, 57, 0.5)'
+          color: 'rgba(200, 200, 200, 0.5)'
         },
         horzLines: {
-          color: 'rgba(42, 46, 57, 0.5)'
+          color: 'rgba(200, 200, 200, 0.5)'
         }
       },
       rightPriceScale: {
-        borderColor: '#2B2B43',
+        borderColor: '#d1d1d1',
         scaleMargins: { top: 0.1, bottom: 0.25 }
       },
       timeScale: {
-        borderColor: '#2B2B43',
+        borderColor: '#d1d1d1',
         timeVisible: true,
         secondsVisible: false,
         // 自定义X轴刻度标签格式化
@@ -500,16 +500,16 @@ export default function App({ dataService, version = 'local' }) {
       crosshair: {
         mode: 1, // Normal crosshair mode
         vertLine: {
-          color: '#758696',
+          color: '#9B9B9B',
           width: 1,
           style: 3, // LineStyle.SparseDotted
-          labelBackgroundColor: '#131722'
+          labelBackgroundColor: '#fefbe2'
         },
         horzLine: {
-          color: '#758696',
+          color: '#9B9B9B',
           width: 1,
           style: 3,
-          labelBackgroundColor: '#131722'
+          labelBackgroundColor: '#fefbe2'
         }
       },
       localization: {
@@ -698,21 +698,21 @@ export default function App({ dataService, version = 'local' }) {
     if (macdContainerRef.current) {
       const macdChart = createChart(macdContainerRef.current, {
         layout: {
-          background: { type: 'solid', color: '#131722' },
-          textColor: '#d1d4dc'
+          background: { type: 'solid', color: '#fefbe2' },
+          textColor: '#333333'
         },
         grid: {
           vertLines: {
-            color: 'rgba(42, 46, 57, 0.5)'
+            color: 'rgba(200, 200, 200, 0.5)'
           },
           horzLines: {
-            color: 'rgba(42, 46, 57, 0.5)'
+            color: 'rgba(200, 200, 200, 0.5)'
           }
         },
         width: macdContainerRef.current.clientWidth,
         height: 150,
         timeScale: {
-          borderColor: '#2B2B43',
+          borderColor: '#d1d1d1',
           timeVisible: true,
           secondsVisible: false,
           visible: true,
@@ -729,16 +729,16 @@ export default function App({ dataService, version = 'local' }) {
         crosshair: {
           mode: 1,
           vertLine: {
-            color: '#758696',
+            color: '#9B9B9B',
             width: 1,
             style: 3,
-            labelBackgroundColor: '#131722'
+            labelBackgroundColor: '#fefbe2'
           },
           horzLine: {
-            color: '#758696',
+            color: '#9B9B9B',
             width: 1,
             style: 3,
-            labelBackgroundColor: '#131722'
+            labelBackgroundColor: '#fefbe2'
           }
         },
         localization: {
@@ -753,7 +753,7 @@ export default function App({ dataService, version = 'local' }) {
           }
         },
         rightPriceScale: {
-          borderColor: '#2B2B43',
+          borderColor: '#d1d1d1',
           scaleMargins: { top: 0.1, bottom: 0.1 }
         }
       });
