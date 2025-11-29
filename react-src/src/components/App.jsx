@@ -125,11 +125,17 @@ export default function App({ dataService, version = 'local' }) {
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   // 画线工具状态
-  const [drawingMode, setDrawingMode] = useState(null); // null | 'trendline' | 'horizontal' | 'ray'
+  const [drawingMode, setDrawingMode] = useState(null); // null | 'trendline' | 'horizontal' | 'ray' | 'rectangle' | 'fibonacci' | 'channel'
   const [drawingStep, setDrawingStep] = useState(0); // 0: 未开始, 1: 已选择第一个点
   const [drawingPoint1, setDrawingPoint1] = useState(null); // { time, price }
   const [trendLines, setTrendLines] = useState([]); // 存储所有趋势线
   const [selectedLineId, setSelectedLineId] = useState(null); // 当前选中的线条ID
+
+  // 图表类型
+  const [chartType, setChartType] = useState('candlestick'); // 'candlestick' | 'line' | 'area'
+
+  // K线样式
+  const [candleStyle, setCandleStyle] = useState('filled'); // 'filled' | 'hollow'
 
   // 图表引用
   const chartContainerRef = useRef(null);
@@ -327,6 +333,118 @@ export default function App({ dataService, version = 'local' }) {
           title: ''
         });
         // 注意：水平线的删除需要特殊处理
+      } else if (line.type === 'rectangle') {
+        // 矩形：绘制四条边
+        const topLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+        const bottomLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+        const leftLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+        const rightLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+
+        const highPrice = Math.max(line.point1.price, line.point2.price);
+        const lowPrice = Math.min(line.point1.price, line.point2.price);
+        const startTime = Math.min(line.point1.time, line.point2.time);
+        const endTime = Math.max(line.point1.time, line.point2.time);
+
+        topLine.setData([
+          { time: startTime, value: highPrice },
+          { time: endTime, value: highPrice }
+        ]);
+        bottomLine.setData([
+          { time: startTime, value: lowPrice },
+          { time: endTime, value: lowPrice }
+        ]);
+        leftLine.setData([
+          { time: startTime, value: lowPrice },
+          { time: startTime, value: highPrice }
+        ]);
+        rightLine.setData([
+          { time: endTime, value: lowPrice },
+          { time: endTime, value: highPrice }
+        ]);
+
+        trendLineSeriesRef.current.push(topLine, bottomLine, leftLine, rightLine);
+      } else if (line.type === 'fibonacci') {
+        // 斐波那契回调：绘制水平线
+        const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+        const colors = ['#787B86', '#9C27B0', '#2196F3', '#FF9800', '#4CAF50', '#F44336', '#787B86'];
+
+        const priceDiff = line.point2.price - line.point1.price;
+        levels.forEach((level, index) => {
+          const price = line.point1.price + priceDiff * level;
+          const fibLine = chartRef.current.addLineSeries({
+            color: colors[index],
+            lineWidth: 1,
+            lineStyle: 2, // 虚线
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false
+          });
+
+          fibLine.setData([
+            { time: Math.min(line.point1.time, line.point2.time), value: price },
+            { time: Math.max(line.point1.time, line.point2.time), value: price }
+          ]);
+
+          trendLineSeriesRef.current.push(fibLine);
+        });
+      } else if (line.type === 'channel') {
+        // 平行通道：绘制两条平行线
+        const mainLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+
+        const parallelLine = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+
+        // 主线
+        mainLine.setData([
+          { time: line.point1.time, value: line.point1.price },
+          { time: line.point2.time, value: line.point2.price }
+        ]);
+
+        // 平行线（假设第三个点定义了通道宽度）
+        if (line.point3) {
+          const offset = line.point3.price - line.point1.price;
+          parallelLine.setData([
+            { time: line.point1.time, value: line.point2.price + offset },
+            { time: line.point2.time, value: line.point2.price + offset }
+          ]);
+        }
+
+        trendLineSeriesRef.current.push(mainLine, parallelLine);
       }
     });
   }, [trendLines]);
@@ -2786,58 +2904,111 @@ export default function App({ dataService, version = 'local' }) {
         <div className="chart-area">
           {/* 画线工具栏 */}
           <div className="drawing-toolbar">
-            <button
-              className={`drawing-tool-btn ${drawingMode === 'trendline' ? 'active' : ''}`}
-              onClick={() => {
-                if (drawingMode === 'trendline') {
-                  setDrawingMode(null);
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                } else {
-                  setDrawingMode('trendline');
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                }
-              }}
-              title="趋势线"
-            >
-              📈
-            </button>
-            <button
-              className={`drawing-tool-btn ${drawingMode === 'horizontal' ? 'active' : ''}`}
-              onClick={() => {
-                if (drawingMode === 'horizontal') {
-                  setDrawingMode(null);
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                } else {
-                  setDrawingMode('horizontal');
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                }
-              }}
-              title="水平线"
-            >
-              ━
-            </button>
-            <button
-              className={`drawing-tool-btn ${drawingMode === 'ray' ? 'active' : ''}`}
-              onClick={() => {
-                if (drawingMode === 'ray') {
-                  setDrawingMode(null);
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                } else {
-                  setDrawingMode('ray');
-                  setDrawingStep(0);
-                  setDrawingPoint1(null);
-                }
-              }}
-              title="射线"
-            >
-              ➡
-            </button>
+            {/* 图表类型切换 */}
+            <div className="toolbar-group">
+              <button
+                className={`drawing-tool-btn ${chartType === 'candlestick' ? 'active' : ''}`}
+                onClick={() => setChartType('candlestick')}
+                title="蜡烛图"
+              >
+                📊
+              </button>
+              <button
+                className={`drawing-tool-btn ${chartType === 'line' ? 'active' : ''}`}
+                onClick={() => setChartType('line')}
+                title="线图"
+              >
+                📉
+              </button>
+              <button
+                className={`drawing-tool-btn ${chartType === 'area' ? 'active' : ''}`}
+                onClick={() => setChartType('area')}
+                title="面积图"
+              >
+                🏔️
+              </button>
+            </div>
+
             <div className="toolbar-divider"></div>
+
+            {/* 基础绘图工具 */}
+            <div className="toolbar-group">
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'trendline' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'trendline' ? null : 'trendline');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="趋势线"
+              >
+                ╱
+              </button>
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'horizontal' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'horizontal' ? null : 'horizontal');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="水平线"
+              >
+                ━
+              </button>
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'ray' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'ray' ? null : 'ray');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="射线"
+              >
+                →
+              </button>
+            </div>
+
+            <div className="toolbar-divider"></div>
+
+            {/* 高级绘图工具 */}
+            <div className="toolbar-group">
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'rectangle' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'rectangle' ? null : 'rectangle');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="矩形"
+              >
+                ▭
+              </button>
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'fibonacci' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'fibonacci' ? null : 'fibonacci');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="斐波那契回调"
+              >
+                Φ
+              </button>
+              <button
+                className={`drawing-tool-btn ${drawingMode === 'channel' ? 'active' : ''}`}
+                onClick={() => {
+                  setDrawingMode(drawingMode === 'channel' ? null : 'channel');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }}
+                title="平行通道"
+              >
+                ∥
+              </button>
+            </div>
+
+            <div className="toolbar-divider"></div>
+
             <button
               className="drawing-tool-btn delete-btn"
               onClick={() => {
@@ -2848,6 +3019,7 @@ export default function App({ dataService, version = 'local' }) {
             >
               🗑️
             </button>
+
             {drawingMode && (
               <span className="drawing-status">
                 {drawingMode === 'horizontal'
