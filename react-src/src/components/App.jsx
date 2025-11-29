@@ -124,6 +124,13 @@ export default function App({ dataService, version = 'local' }) {
   });
   const [showLoginDialog, setShowLoginDialog] = useState(false);
 
+  // 画线工具状态
+  const [drawingMode, setDrawingMode] = useState(null); // null | 'trendline' | 'horizontal' | 'ray'
+  const [drawingStep, setDrawingStep] = useState(0); // 0: 未开始, 1: 已选择第一个点
+  const [drawingPoint1, setDrawingPoint1] = useState(null); // { time, price }
+  const [trendLines, setTrendLines] = useState([]); // 存储所有趋势线
+  const [selectedLineId, setSelectedLineId] = useState(null); // 当前选中的线条ID
+
   // 图表引用
   const chartContainerRef = useRef(null);
   const macdContainerRef = useRef(null);
@@ -133,6 +140,7 @@ export default function App({ dataService, version = 'local' }) {
   const currentPriceLineRef = useRef(null);
   const positionLinesRef = useRef({ position: null, stopLoss: null, takeProfit: null });
   const markersRef = useRef([]);
+  const trendLineSeriesRef = useRef([]); // 存储趋势线系列的引用
 
   // ========== 初始化 ==========
   useEffect(() => {
@@ -210,19 +218,155 @@ export default function App({ dataService, version = 'local' }) {
     }
   }, [sortType, history, filterSymbol, filterStart, filterEnd]);
 
+  // ========== 画线工具函数 ==========
+
+  // 处理画线点击
+  const handleDrawingClick = useCallback((time, price) => {
+    // 水平线只需要一个点
+    if (drawingMode === 'horizontal') {
+      const newLine = {
+        id: Date.now(),
+        type: 'horizontal',
+        point1: { time, price },
+        point2: null,
+        color: '#2962FF',
+        width: 2
+      };
+      setTrendLines(prev => [...prev, newLine]);
+      setDrawingMode(null);
+      setDrawingStep(0);
+      console.log('Horizontal line at price:', price);
+      return;
+    }
+
+    // 趋势线和射线需要两个点
+    if (drawingStep === 0) {
+      // 第一个点
+      setDrawingPoint1({ time, price });
+      setDrawingStep(1);
+      console.log('First point:', { time, price });
+    } else if (drawingStep === 1) {
+      // 第二个点，完成绘制
+      const point2 = { time, price };
+      console.log('Second point:', point2);
+
+      // 创建新趋势线
+      const newLine = {
+        id: Date.now(),
+        type: drawingMode,
+        point1: drawingPoint1,
+        point2: point2,
+        color: '#2962FF',
+        width: 2
+      };
+
+      setTrendLines(prev => [...prev, newLine]);
+
+      // 重置画线状态
+      setDrawingStep(0);
+      setDrawingPoint1(null);
+      setDrawingMode(null);
+    }
+  }, [drawingMode, drawingStep, drawingPoint1]);
+
+  // 渲染所有趋势线
+  const renderTrendLines = useCallback(() => {
+    if (!chartRef.current) return;
+
+    // 清除旧的趋势线
+    trendLineSeriesRef.current.forEach(series => {
+      chartRef.current.removeSeries(series);
+    });
+    trendLineSeriesRef.current = [];
+
+    // 绘制所有趋势线
+    trendLines.forEach(line => {
+      if (line.type === 'trendline' || line.type === 'ray') {
+        // 使用LineSeries绘制趋势线
+        const lineSeries = chartRef.current.addLineSeries({
+          color: line.color,
+          lineWidth: line.width,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        });
+
+        // 计算线条数据
+        let lineData = [];
+        if (line.type === 'trendline') {
+          // 趋势线：连接两点
+          lineData = [
+            { time: line.point1.time, value: line.point1.price },
+            { time: line.point2.time, value: line.point2.price }
+          ];
+        } else if (line.type === 'ray') {
+          // 射线：从第一点延伸到图表末端
+          const slope = (line.point2.price - line.point1.price) / (line.point2.time - line.point1.time);
+          // 获取图表的时间范围
+          const visibleRange = chartRef.current.timeScale().getVisibleRange();
+          if (visibleRange) {
+            const endTime = visibleRange.to;
+            const endPrice = line.point1.price + slope * (endTime - line.point1.time);
+            lineData = [
+              { time: line.point1.time, value: line.point1.price },
+              { time: endTime, value: endPrice }
+            ];
+          }
+        }
+
+        lineSeries.setData(lineData);
+        trendLineSeriesRef.current.push(lineSeries);
+      } else if (line.type === 'horizontal') {
+        // 水平线
+        const priceLine = seriesRef.current.candle.createPriceLine({
+          price: line.point1.price,
+          color: line.color,
+          lineWidth: line.width,
+          lineStyle: 0,
+          axisLabelVisible: true,
+          title: ''
+        });
+        // 注意：水平线的删除需要特殊处理
+      }
+    });
+  }, [trendLines]);
+
+  // 当趋势线数据变化时重新渲染
+  useEffect(() => {
+    renderTrendLines();
+  }, [trendLines, renderTrendLines]);
+
+  // 删除选中的趋势线
+  const handleDeleteLine = useCallback(() => {
+    if (selectedLineId) {
+      setTrendLines(prev => prev.filter(line => line.id !== selectedLineId));
+      setSelectedLineId(null);
+    }
+  }, [selectedLineId]);
+
   // ========== 图表初始化 ==========
   const initChart = () => {
     if (!chartContainerRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: 'solid', color: '#ffffff' },
-        textColor: '#000'
+        background: { type: 'solid', color: '#131722' },
+        textColor: '#d1d4dc'
+      },
+      grid: {
+        vertLines: {
+          color: 'rgba(42, 46, 57, 0.5)'
+        },
+        horzLines: {
+          color: 'rgba(42, 46, 57, 0.5)'
+        }
       },
       rightPriceScale: {
+        borderColor: '#2B2B43',
         scaleMargins: { top: 0.1, bottom: 0.25 }
       },
       timeScale: {
+        borderColor: '#2B2B43',
         timeVisible: true,
         secondsVisible: false,
         // 自定义X轴刻度标签格式化
@@ -233,6 +377,21 @@ export default function App({ dataService, version = 'local' }) {
           const hours = String(date.getUTCHours()).padStart(2, '0');
           const minutes = String(date.getUTCMinutes()).padStart(2, '0');
           return `${month}-${day} ${hours}:${minutes}`;
+        }
+      },
+      crosshair: {
+        mode: 1, // Normal crosshair mode
+        vertLine: {
+          color: '#758696',
+          width: 1,
+          style: 3, // LineStyle.SparseDotted
+          labelBackgroundColor: '#131722'
+        },
+        horzLine: {
+          color: '#758696',
+          width: 1,
+          style: 3,
+          labelBackgroundColor: '#131722'
         }
       },
       localization: {
@@ -251,7 +410,14 @@ export default function App({ dataService, version = 'local' }) {
     });
 
     // 创建K线系列
-    const candleSeries = chart.addCandlestickSeries();
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderUpColor: '#26a69a',
+      borderDownColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350'
+    });
 
     // 创建成交量系列
     const volumeSeries = chart.addHistogramSeries({
@@ -262,25 +428,25 @@ export default function App({ dataService, version = 'local' }) {
 
     // 创建MA系列
     const ma5 = chart.addLineSeries({
-      color: 'orange',
+      color: '#2962FF',
       lineWidth: 1,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ma10 = chart.addLineSeries({
-      color: 'gold',
+      color: '#E91E63',
       lineWidth: 1,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ma20 = chart.addLineSeries({
-      color: 'blue',
+      color: '#9C27B0',
       lineWidth: 1,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ma60 = chart.addLineSeries({
-      color: 'purple',
+      color: '#FF6D00',
       lineWidth: 1,
       lastValueVisible: false,
       priceLineVisible: false
@@ -288,28 +454,28 @@ export default function App({ dataService, version = 'local' }) {
 
     // 创建EMA系列
     const ema21 = chart.addLineSeries({
-      color: '#00bcd4',
+      color: '#00BCD4',
       lineWidth: 1,
       visible: false,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ema55 = chart.addLineSeries({
-      color: '#ff9800',
+      color: '#FF9800',
       lineWidth: 1,
       visible: false,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ema100 = chart.addLineSeries({
-      color: '#e91e63',
+      color: '#4CAF50',
       lineWidth: 1,
       visible: false,
       lastValueVisible: false,
       priceLineVisible: false
     });
     const ema200 = chart.addLineSeries({
-      color: '#000000',
+      color: '#F44336',
       lineWidth: 1,
       visible: false,
       lastValueVisible: false,
@@ -384,6 +550,12 @@ export default function App({ dataService, version = 'local' }) {
         price = candleData.close;
       }
 
+      // 画线模式处理
+      if (drawingMode) {
+        handleDrawingClick(param.time, price);
+        return;
+      }
+
       setSelectedPoint({
         time: param.time * 1000,
         price: price
@@ -408,12 +580,21 @@ export default function App({ dataService, version = 'local' }) {
     if (macdContainerRef.current) {
       const macdChart = createChart(macdContainerRef.current, {
         layout: {
-          background: { type: 'solid', color: '#ffffff' },
-          textColor: '#000'
+          background: { type: 'solid', color: '#131722' },
+          textColor: '#d1d4dc'
+        },
+        grid: {
+          vertLines: {
+            color: 'rgba(42, 46, 57, 0.5)'
+          },
+          horzLines: {
+            color: 'rgba(42, 46, 57, 0.5)'
+          }
         },
         width: macdContainerRef.current.clientWidth,
         height: 150,
         timeScale: {
+          borderColor: '#2B2B43',
           timeVisible: true,
           secondsVisible: false,
           visible: true,
@@ -425,6 +606,21 @@ export default function App({ dataService, version = 'local' }) {
             const hours = String(date.getUTCHours()).padStart(2, '0');
             const minutes = String(date.getUTCMinutes()).padStart(2, '0');
             return `${month}-${day} ${hours}:${minutes}`;
+          }
+        },
+        crosshair: {
+          mode: 1,
+          vertLine: {
+            color: '#758696',
+            width: 1,
+            style: 3,
+            labelBackgroundColor: '#131722'
+          },
+          horzLine: {
+            color: '#758696',
+            width: 1,
+            style: 3,
+            labelBackgroundColor: '#131722'
           }
         },
         localization: {
@@ -439,6 +635,7 @@ export default function App({ dataService, version = 'local' }) {
           }
         },
         rightPriceScale: {
+          borderColor: '#2B2B43',
           scaleMargins: { top: 0.1, bottom: 0.1 }
         }
       });
@@ -2587,6 +2784,79 @@ export default function App({ dataService, version = 'local' }) {
       {/* 图表和侧边栏 */}
       <div className="main-container">
         <div className="chart-area">
+          {/* 画线工具栏 */}
+          <div className="drawing-toolbar">
+            <button
+              className={`drawing-tool-btn ${drawingMode === 'trendline' ? 'active' : ''}`}
+              onClick={() => {
+                if (drawingMode === 'trendline') {
+                  setDrawingMode(null);
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                } else {
+                  setDrawingMode('trendline');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }
+              }}
+              title="趋势线"
+            >
+              📈
+            </button>
+            <button
+              className={`drawing-tool-btn ${drawingMode === 'horizontal' ? 'active' : ''}`}
+              onClick={() => {
+                if (drawingMode === 'horizontal') {
+                  setDrawingMode(null);
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                } else {
+                  setDrawingMode('horizontal');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }
+              }}
+              title="水平线"
+            >
+              ━
+            </button>
+            <button
+              className={`drawing-tool-btn ${drawingMode === 'ray' ? 'active' : ''}`}
+              onClick={() => {
+                if (drawingMode === 'ray') {
+                  setDrawingMode(null);
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                } else {
+                  setDrawingMode('ray');
+                  setDrawingStep(0);
+                  setDrawingPoint1(null);
+                }
+              }}
+              title="射线"
+            >
+              ➡
+            </button>
+            <div className="toolbar-divider"></div>
+            <button
+              className="drawing-tool-btn delete-btn"
+              onClick={() => {
+                setTrendLines([]);
+                setSelectedLineId(null);
+              }}
+              title="清除所有线条"
+            >
+              🗑️
+            </button>
+            {drawingMode && (
+              <span className="drawing-status">
+                {drawingMode === 'horizontal'
+                  ? '点击图表选择价格位置'
+                  : (drawingStep === 0 ? '点击图表选择起点' : '点击图表选择终点')
+                }
+              </span>
+            )}
+          </div>
           <div ref={chartContainerRef} className="chart" />
           <div
             ref={macdContainerRef}
@@ -2595,15 +2865,15 @@ export default function App({ dataService, version = 'local' }) {
           />
           <div className="legend">
             <strong>MA:</strong>
-            <span><i style={{ background: 'orange' }}></i>MA5</span>
-            <span><i style={{ background: 'gold' }}></i>MA10</span>
-            <span><i style={{ background: 'blue' }}></i>MA20</span>
-            <span><i style={{ background: 'purple' }}></i>MA60</span>
+            <span><i style={{ background: '#2962FF' }}></i>MA5</span>
+            <span><i style={{ background: '#E91E63' }}></i>MA10</span>
+            <span><i style={{ background: '#9C27B0' }}></i>MA20</span>
+            <span><i style={{ background: '#FF6D00' }}></i>MA60</span>
             <strong style={{ marginLeft: '15px' }}>EMA:</strong>
-            <span><i style={{ background: '#00bcd4' }}></i>EMA21</span>
-            <span><i style={{ background: '#ff9800' }}></i>EMA55</span>
-            <span><i style={{ background: '#e91e63' }}></i>EMA100</span>
-            <span><i style={{ background: '#000000' }}></i>EMA200</span>
+            <span><i style={{ background: '#00BCD4' }}></i>EMA21</span>
+            <span><i style={{ background: '#FF9800' }}></i>EMA55</span>
+            <span><i style={{ background: '#4CAF50' }}></i>EMA100</span>
+            <span><i style={{ background: '#F44336' }}></i>EMA200</span>
             <strong style={{ marginLeft: '15px' }}>BB:</strong>
             <span><i style={{ background: '#2196f3' }}></i>布林带</span>
             <strong style={{ marginLeft: '15px' }}>MACD:</strong>

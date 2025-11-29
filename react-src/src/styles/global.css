@@ -1029,3 +1029,65 @@ button:disabled {
 .percent-btn.active:hover {
   background: #d4ebe8 !important;
 }
+
+/* 画线工具栏 */
+.drawing-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: #1e222d;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.drawing-tool-btn {
+  padding: 8px 16px;
+  font-size: 18px;
+  background: #2a2e39;
+  color: #d1d4dc;
+  border: 1px solid #3a3e49;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 36px;
+}
+
+.drawing-tool-btn:hover {
+  background: #3a3e49;
+  border-color: #4a4e59;
+}
+
+.drawing-tool-btn.active {
+  background: #2962FF;
+  border-color: #2962FF;
+  color: white;
+}
+
+.drawing-tool-btn.delete-btn:hover {
+  background: #ef5350;
+  border-color: #ef5350;
+  color: white;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #3a3e49;
+  margin: 0 4px;
+}
+
+.drawing-status {
+  color: #d1d4dc;
+  font-size: 13px;
+  margin-left: 10px;
+  padding: 6px 12px;
+  background: #2a2e39;
+  border-radius: 4px;
+  border: 1px solid #3a3e49;
+}
