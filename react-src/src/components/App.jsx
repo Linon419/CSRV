@@ -130,6 +130,9 @@ export default function App({ dataService, version = 'local' }) {
   const [drawingPoint1, setDrawingPoint1] = useState(null); // { time, price }
   const [trendLines, setTrendLines] = useState([]); // 存储所有趋势线
   const [selectedLineId, setSelectedLineId] = useState(null); // 当前选中的线条ID
+  const [magnetMode, setMagnetMode] = useState(true); // 磁吸模式
+  const [showLineEditor, setShowLineEditor] = useState(false); // 显示线条编辑器
+  const [editingLine, setEditingLine] = useState(null); // 正在编辑的线条
 
   // 图表类型
   const [chartType, setChartType] = useState('candlestick'); // 'candlestick' | 'line' | 'area'
@@ -226,8 +229,62 @@ export default function App({ dataService, version = 'local' }) {
 
   // ========== 画线工具函数 ==========
 
+  // 磁吸到K线高低点
+  const applyMagnet = useCallback((time, price) => {
+    if (!magnetMode || !fullData || fullData.length === 0) {
+      return { time, price };
+    }
+
+    // 找到最接近的K线
+    let closestIndex = 0;
+    let minTimeDiff = Math.abs(fullData[0].time - time);
+
+    for (let i = 1; i < fullData.length; i++) {
+      const timeDiff = Math.abs(fullData[i].time - time);
+      if (timeDiff < minTimeDiff) {
+        minTimeDiff = timeDiff;
+        closestIndex = i;
+      }
+    }
+
+    // 检查前后2根K线，找局部高点或低点
+    const checkRange = 2;
+    const startIdx = Math.max(0, closestIndex - checkRange);
+    const endIdx = Math.min(fullData.length - 1, closestIndex + checkRange);
+
+    let highestPrice = fullData[closestIndex].high;
+    let lowestPrice = fullData[closestIndex].low;
+    let highestTime = fullData[closestIndex].time;
+    let lowestTime = fullData[closestIndex].time;
+
+    for (let i = startIdx; i <= endIdx; i++) {
+      if (fullData[i].high > highestPrice) {
+        highestPrice = fullData[i].high;
+        highestTime = fullData[i].time;
+      }
+      if (fullData[i].low < lowestPrice) {
+        lowestPrice = fullData[i].low;
+        lowestTime = fullData[i].time;
+      }
+    }
+
+    // 判断点击位置更接近高点还是低点
+    const distToHigh = Math.abs(price - highestPrice);
+    const distToLow = Math.abs(price - lowestPrice);
+
+    if (distToHigh < distToLow) {
+      return { time: highestTime, price: highestPrice };
+    } else {
+      return { time: lowestTime, price: lowestPrice };
+    }
+  }, [magnetMode, fullData]);
+
   // 处理画线点击
   const handleDrawingClick = useCallback((time, price) => {
+    // 应用磁吸
+    const magnetPoint = applyMagnet(time, price);
+    time = magnetPoint.time;
+    price = magnetPoint.price;
     // 水平线只需要一个点
     if (drawingMode === 'horizontal') {
       const newLine = {
@@ -273,7 +330,7 @@ export default function App({ dataService, version = 'local' }) {
       setDrawingPoint1(null);
       setDrawingMode(null);
     }
-  }, [drawingMode, drawingStep, drawingPoint1]);
+  }, [drawingMode, drawingStep, drawingPoint1, applyMagnet]);
 
   // 渲染所有趋势线
   const renderTrendLines = useCallback(() => {
@@ -3009,11 +3066,39 @@ export default function App({ dataService, version = 'local' }) {
 
             <div className="toolbar-divider"></div>
 
+            {/* 磁吸开关 */}
+            <button
+              className={`drawing-tool-btn ${magnetMode ? 'active' : ''}`}
+              onClick={() => setMagnetMode(!magnetMode)}
+              title={magnetMode ? "磁吸已开启 - 自动吸附到高低点" : "磁吸已关闭"}
+            >
+              🧲
+            </button>
+
+            <div className="toolbar-divider"></div>
+
+            {/* 删除选中的线条 */}
+            {selectedLineId && (
+              <button
+                className="drawing-tool-btn delete-btn"
+                onClick={() => {
+                  setTrendLines(prev => prev.filter(line => line.id !== selectedLineId));
+                  setSelectedLineId(null);
+                }}
+                title="删除选中的线条"
+              >
+                ✕
+              </button>
+            )}
+
+            {/* 清除所有线条 */}
             <button
               className="drawing-tool-btn delete-btn"
               onClick={() => {
-                setTrendLines([]);
-                setSelectedLineId(null);
+                if (confirm('确定要清除所有线条吗？')) {
+                  setTrendLines([]);
+                  setSelectedLineId(null);
+                }
               }}
               title="清除所有线条"
             >
@@ -3024,8 +3109,17 @@ export default function App({ dataService, version = 'local' }) {
               <span className="drawing-status">
                 {drawingMode === 'horizontal'
                   ? '点击图表选择价格位置'
-                  : (drawingStep === 0 ? '点击图表选择起点' : '点击图表选择终点')
+                  : (drawingStep === 0
+                      ? (magnetMode ? '点击图表选择起点（自动吸附到高低点）' : '点击图表选择起点')
+                      : (magnetMode ? '点击图表选择终点（自动吸附到高低点）' : '点击图表选择终点')
+                    )
                 }
+              </span>
+            )}
+
+            {selectedLineId && !drawingMode && (
+              <span className="drawing-status">
+                已选中线条 - 点击"✕"删除或点击其他工具
               </span>
             )}
           </div>
